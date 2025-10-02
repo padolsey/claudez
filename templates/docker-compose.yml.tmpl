@@ -39,6 +39,7 @@ services:
 
     read_only: false
     cap_drop: [ "ALL" ]
+    cap_add: [ "CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID" ]
     security_opt: [ "no-new-privileges:true" ]
     mem_limit: ${MEM_LIMIT}
     cpus: "${CPU_LIMIT}"

@@ -16,18 +16,19 @@ RUN install -d /usr/local/bin && \
 #!/usr/bin/env bash
 set -e
 
-# Fix workspace ownership for inner Claude
-chown -R appuser:appuser /workspace 2>/dev/null || true
-
 # Pre-seed Claude onboarding state for the runtime user
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   HOME="/home/appuser"
   mkdir -p "${HOME}"
   KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 2>/dev/null || echo "")"
   TARGET_JSON="${HOME}/.claude.json"
-  # If symlinked (persisted), resolve real path
-  [ -L "${TARGET_JSON}" ] && TARGET_JSON="$(readlink -f "${TARGET_JSON}")"
-  install -d -o appuser -g appuser "$(dirname "$TARGET_JSON")"
+  # If symlinked (persisted), ensure target directory exists
+  if [ -L "${TARGET_JSON}" ]; then
+    LINK_TARGET="$(readlink "${TARGET_JSON}")"
+    mkdir -p "$(dirname "$LINK_TARGET")"
+  else
+    mkdir -p "$(dirname "$TARGET_JSON")"
+  fi
   cat > "${TARGET_JSON}" <<JSON
 {
   "customApiKeyResponses": { "approved": ["${KEY_TAIL}"], "rejected": [] },
@@ -36,9 +37,11 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   "hasCompletedOnboarding": true
 }
 JSON
-  chown appuser:appuser "${TARGET_JSON}"
   chmod 600 "${TARGET_JSON}"
 fi
+
+# Fix workspace ownership for inner Claude (after creating .claude dir)
+chown -R appuser:appuser /workspace 2>/dev/null || true
 
 # cc wrapper — runs Claude inside tmux (auto-attach), from /workspace
 cat >/usr/local/bin/cc <<'SH'
