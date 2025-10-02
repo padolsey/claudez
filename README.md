@@ -26,6 +26,118 @@ Before using this tool, your server needs:
 
 If you don't have Traefik set up yet, you'll need to deploy it first as the reverse proxy layer that handles all HTTPS routing and certificates.
 
+## Fresh Ubuntu Server Setup
+
+Starting with a clean **Ubuntu 22.04+** server? Run this to install everything:
+
+```bash
+# 1. Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 2. Create Traefik network
+docker network create edge
+
+# 3. Deploy Traefik with Let's Encrypt
+mkdir -p ~/traefik
+cat > ~/traefik/docker-compose.yml <<'EOF'
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - edge
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+      - ./traefik.yml:/traefik.yml:ro
+    environment:
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=your@email.com
+
+networks:
+  edge:
+    external: true
+EOF
+
+cat > ~/traefik/traefik.yml <<'EOF'
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    network: edge
+    exposedByDefault: false
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+EOF
+
+# Edit email in docker-compose.yml
+nano ~/traefik/docker-compose.yml  # Change your@email.com
+
+# Start Traefik
+cd ~/traefik && docker compose up -d
+
+# 4. Configure DNS
+# Point *.yourdomain.com to your server's IP (A record in your DNS provider)
+# Verify with: dig vanilla-test.yourdomain.com
+
+# 5. Store your Anthropic API key
+sudo install -D -m 600 /dev/stdin /root/ANTHROPIC_KEY.txt
+# Paste your key, then press Ctrl+D
+
+# 6. Clone this tool
+cd ~
+git clone git@github.com:padolsey/provision.git
+
+# 7. Configure your domain
+cat > ~/.provisionrc <<'EOF'
+DOMAIN_BASE=yourdomain.com
+EOF
+# Edit with your actual domain
+nano ~/.provisionrc
+
+# 8. Create your first sandbox
+~/provision/bin/provision create myapp
+
+# 9. Enter and start Claude
+~/provision/bin/provision enter myapp
+# Inside: run 'cc' to attach Claude in tmux
+```
+
+**What you need before starting:**
+- Fresh Ubuntu 22.04+ server (Hetzner, DigitalOcean, AWS, etc.)
+- Domain name with DNS access
+- Anthropic API key ([get one here](https://console.anthropic.com/))
+- SSH access to your server
+
+**DNS Setup:**
+In your DNS provider (Cloudflare, Route53, etc.), add:
+- **A Record**: `*.yourdomain.com` → `your.server.ip.address`
+
+Verify DNS propagation: `dig vanilla-myapp.yourdomain.com` should return your server IP.
+
 ## How it works
 
 1. You run `provision create myapp`
