@@ -16,15 +16,18 @@ RUN install -d /usr/local/bin && \
 #!/usr/bin/env bash
 set -e
 
-# Pre-seed Claude onboarding state for the runtime user every boot
+# Fix workspace ownership for inner Claude
+chown -R appuser:appuser /workspace 2>/dev/null || true
+
+# Pre-seed Claude onboarding state for the runtime user
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  HOME="${HOME:-/home/appuser}"
+  HOME="/home/appuser"
   mkdir -p "${HOME}"
   KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 2>/dev/null || echo "")"
   TARGET_JSON="${HOME}/.claude.json"
   # If symlinked (persisted), resolve real path
   [ -L "${TARGET_JSON}" ] && TARGET_JSON="$(readlink -f "${TARGET_JSON}")"
-  install -d "$(dirname "$TARGET_JSON")"
+  install -d -o appuser -g appuser "$(dirname "$TARGET_JSON")"
   cat > "${TARGET_JSON}" <<JSON
 {
   "customApiKeyResponses": { "approved": ["${KEY_TAIL}"], "rejected": [] },
@@ -33,6 +36,7 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   "hasCompletedOnboarding": true
 }
 JSON
+  chown appuser:appuser "${TARGET_JSON}"
   chmod 600 "${TARGET_JSON}"
 fi
 
@@ -59,10 +63,13 @@ fi
 SH
 chmod +x /usr/local/bin/cc
 
-# start vanilla static server (quiet) and keep container alive
-pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
-pm2 save >/dev/null 2>&1 || true
-sleep infinity
+# Drop to appuser and start services
+exec su - appuser -c '
+  cd /workspace
+  pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
+  pm2 save >/dev/null 2>&1 || true
+  sleep infinity
+'
 EOS
 RUN chmod +x /usr/local/bin/startup.sh
 
