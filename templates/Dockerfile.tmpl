@@ -37,6 +37,7 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   "hasCompletedOnboarding": true
 }
 JSON
+  chown appuser:appuser "${TARGET_JSON}"
   chmod 600 "${TARGET_JSON}"
 fi
 
