@@ -111,17 +111,22 @@ sudo install -D -m 600 /dev/stdin /root/ANTHROPIC_KEY.txt
 cd ~
 git clone git@github.com:padolsey/provision.git
 
-# 7. Configure your domain
+# 7. (Optional) Create global alias
+echo "alias provision='~/provision/bin/provision'" >> ~/.bashrc
+source ~/.bashrc
+# Or for system-wide: sudo ln -s ~/provision/bin/provision /usr/local/bin/provision
+
+# 8. Configure your domain
 cat > ~/.provisionrc <<'EOF'
 DOMAIN_BASE=yourdomain.com
 EOF
 # Edit with your actual domain
 nano ~/.provisionrc
 
-# 8. Create your first sandbox
+# 9. Create your first sandbox
 ~/provision/bin/provision create myapp
 
-# 9. Enter and start Claude
+# 10. Enter and start Claude
 ~/provision/bin/provision enter myapp
 # Inside: run 'cc' to attach Claude in tmux
 ```
