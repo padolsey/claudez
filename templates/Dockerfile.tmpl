@@ -20,7 +20,7 @@ set -e
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   HOME="${HOME:-/home/appuser}"
   mkdir -p "${HOME}"
-  KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 || true)"
+  KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 2>/dev/null || echo "")"
   TARGET_JSON="${HOME}/.claude.json"
   # If symlinked (persisted), resolve real path
   [ -L "${TARGET_JSON}" ] && TARGET_JSON="$(readlink -f "${TARGET_JSON}")"
@@ -69,12 +69,15 @@ RUN chmod +x /usr/local/bin/startup.sh
 # runtime user
 RUN useradd -m -u 10001 appuser
 WORKDIR /workspace
-USER appuser
 
 # Optional persisted config symlink: store file in /workspace/.claude/claude.json
 RUN mkdir -p /workspace/.claude && \
-    [ -e /home/appuser/.claude.json ] || ln -s /workspace/.claude/claude.json /home/appuser/.claude.json
+    chown -R appuser:appuser /workspace/.claude
 
+USER appuser
+RUN [ -e /home/appuser/.claude.json ] || ln -s /workspace/.claude/claude.json /home/appuser/.claude.json
+
+USER root
 ENV PORT=3000
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["bash","-lc","/usr/local/bin/startup.sh"]

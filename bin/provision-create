@@ -41,7 +41,7 @@ EOF
 chmod 600 "${APP_DIR}/.env"
 
 # Templates
-render "$ROOT_DIR/templates/vanilla.index.html.tmpl" "${APP_DIR}/workspace/vanilla.index.html" >/dev/null
+NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/vanilla.index.html.tmpl" "${APP_DIR}/workspace/vanilla.index.html" >/dev/null
 install -d "${APP_DIR}/workspace/vanilla"
 mv -f "${APP_DIR}/workspace/vanilla.index.html" "${APP_DIR}/workspace/vanilla/index.html"
 

@@ -18,25 +18,22 @@ services:
 
       # PROD: <name>.${DOMAIN_BASE} -> :3000
       - "traefik.http.routers.${NAME}.rule=Host(`${NAME}.${DOMAIN_BASE}`)"
-      - "traefik.http.routers.${NAME}.entrypoints=web"
-      - "traefik.http.routers.${NAME}.priority=10"
-      - "traefik.http.routers.${NAME}.middlewares=errpages@docker"
+      - "traefik.http.routers.${NAME}.entrypoints=websecure"
+      - "traefik.http.routers.${NAME}.tls.certresolver=letsencrypt"
       - "traefik.http.routers.${NAME}.service=${NAME}"
       - "traefik.http.services.${NAME}.loadbalancer.server.port=3000"
 
       # DEV: dev-<name>.${DOMAIN_BASE} -> :8000
       - "traefik.http.routers.dev-${NAME}.rule=Host(`dev-${NAME}.${DOMAIN_BASE}`)"
-      - "traefik.http.routers.dev-${NAME}.entrypoints=web"
-      - "traefik.http.routers.dev-${NAME}.priority=10"
-      - "traefik.http.routers.dev-${NAME}.middlewares=errpages@docker"
+      - "traefik.http.routers.dev-${NAME}.entrypoints=websecure"
+      - "traefik.http.routers.dev-${NAME}.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dev-${NAME}.service=dev-${NAME}"
       - "traefik.http.services.dev-${NAME}.loadbalancer.server.port=8000"
 
       # VANILLA: vanilla-<name>.${DOMAIN_BASE} -> :9000
       - "traefik.http.routers.vanilla-${NAME}.rule=Host(`vanilla-${NAME}.${DOMAIN_BASE}`)"
-      - "traefik.http.routers.vanilla-${NAME}.entrypoints=web"
-      - "traefik.http.routers.vanilla-${NAME}.priority=10"
-      - "traefik.http.routers.vanilla-${NAME}.middlewares=errpages@docker"
+      - "traefik.http.routers.vanilla-${NAME}.entrypoints=websecure"
+      - "traefik.http.routers.vanilla-${NAME}.tls.certresolver=letsencrypt"
       - "traefik.http.routers.vanilla-${NAME}.service=vanilla-${NAME}"
       - "traefik.http.services.vanilla-${NAME}.loadbalancer.server.port=9000"
 
