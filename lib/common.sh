@@ -4,6 +4,12 @@ set -Eeuo pipefail
 need() { command -v "$1" >/dev/null || { printf '[provision:ERROR] missing dependency: %s\n' "$1" >&2; exit 1; }; }
 log()  { printf '[provision] %s\n' "$*"; }
 die()  { printf '[provision:ERROR] %s\n' "$*" >&2; exit 1; }
+confirm() {
+  local prompt="${1:-Continue?}"
+  printf '[provision] %s [y/N] ' "$prompt" >&2
+  read -r response
+  [[ "$response" =~ ^[Yy]$ ]] || die "Cancelled."
+}
 
 # Defaults file -> per-user overrides -> project env (if provided via caller)
 load_env() {

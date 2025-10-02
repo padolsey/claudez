@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+FORCE=0
+NAME=""
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force) FORCE=1; shift ;;
+    -*) die "Unknown flag: $1" ;;
+    *) NAME="$1"; shift ;;
+  esac
+done
+
+[ -z "$NAME" ] && die "Usage: provision rm <name> [--force]"
+
+load_env
+need docker
+
+APP_DIR="${APPS_DIR}/${NAME}"
+CONTAINER_NAME="${NAME}-app"
+IMAGE_NAME="${NAME}-app"
+
+# Check if app exists
+if [ ! -d "$APP_DIR" ] && ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  die "App '${NAME}' not found (no directory or container)."
+fi
+
+# Confirmation
+if [ "$FORCE" -eq 0 ]; then
+  log "This will remove:"
+  [ -d "$APP_DIR" ] && log "  - Directory: ${APP_DIR}"
+  docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME" && log "  - Container: ${CONTAINER_NAME}"
+  docker images --format '{{.Repository}}' | grep -qx "$IMAGE_NAME" && log "  - Image: ${IMAGE_NAME}"
+  confirm "Permanently delete app '${NAME}'?"
+fi
+
+# Remove container
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  log "Stopping and removing container '${CONTAINER_NAME}'..."
+  docker stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+  docker rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
+# Remove image
+if docker images --format '{{.Repository}}' | grep -qx "$IMAGE_NAME"; then
+  log "Removing image '${IMAGE_NAME}'..."
+  docker rmi "$IMAGE_NAME" >/dev/null 2>&1 || true
+fi
+
+# Remove app directory
+if [ -d "$APP_DIR" ]; then
+  log "Removing directory '${APP_DIR}'..."
+  rm -rf "$APP_DIR"
+fi
+
+log "✅ App '${NAME}' has been removed."

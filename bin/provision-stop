@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+FORCE=0
+NAME=""
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force) FORCE=1; shift ;;
+    -*) die "Unknown flag: $1" ;;
+    *) NAME="$1"; shift ;;
+  esac
+done
+
+[ -z "$NAME" ] && die "Usage: provision stop <name> [--force]"
+
+load_env
+need docker
+
+CONTAINER_NAME="${NAME}-app"
+
+# Check if container exists
+if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  die "Container '${CONTAINER_NAME}' not found."
+fi
+
+# Check if already stopped
+if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  log "Container '${CONTAINER_NAME}' is already stopped."
+  exit 0
+fi
+
+# Confirmation
+if [ "$FORCE" -eq 0 ]; then
+  confirm "Stop container '${CONTAINER_NAME}'?"
+fi
+
+log "Stopping '${CONTAINER_NAME}'..."
+docker stop "$CONTAINER_NAME" >/dev/null
+
+log "✅ Container '${NAME}' has been stopped."

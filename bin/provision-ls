@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+load_env
+need docker
+
+# Check if apps directory exists
+if [ ! -d "$APPS_DIR" ]; then
+  die "Apps directory not found: $APPS_DIR"
+fi
+
+# Header
+printf "%-15s %-12s %-15s %s\n" "NAME" "STATUS" "UPTIME" "URL"
+printf "%-15s %-12s %-15s %s\n" "----" "------" "------" "---"
+
+# Get all docker containers with -app suffix
+declare -A container_status
+declare -A container_uptime
+
+while IFS=$'\t' read -r name status uptime; do
+  # Extract app name (remove -app suffix)
+  app_name="${name%-app}"
+  container_status["$app_name"]="$status"
+  container_uptime["$app_name"]="$uptime"
+done < <(docker ps -a --filter "name=-app" --format "{{.Names}}\t{{.Status}}\t{{.RunningFor}}" 2>/dev/null)
+
+# List all apps in APPS_DIR
+for app_path in "$APPS_DIR"/*; do
+  [ -d "$app_path" ] || continue
+
+  app_name="$(basename "$app_path")"
+
+  # Determine status
+  if [ -n "${container_status[$app_name]:-}" ]; then
+    status_raw="${container_status[$app_name]}"
+    uptime_raw="${container_uptime[$app_name]}"
+
+    # Parse status (e.g., "Up 9 hours" -> "running", "Exited (0) 2 hours ago" -> "stopped")
+    if [[ "$status_raw" =~ ^Up ]]; then
+      status="running"
+      # Extract just the time part from status
+      uptime=$(echo "$status_raw" | sed 's/Up //')
+    else
+      status="stopped"
+      uptime="-"
+    fi
+  else
+    status="no-container"
+    uptime="-"
+  fi
+
+  # Build URL
+  url="https://${app_name}.${DOMAIN_BASE}"
+
+  # Print row
+  printf "%-15s %-12s %-15s %s\n" "$app_name" "$status" "$uptime" "$url"
+done | sort

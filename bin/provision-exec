@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+NAME=""
+COMMAND=""
+
+# Parse args
+if [ $# -lt 2 ]; then
+  cat <<'EOF'
+Usage: provision exec <name> <command>
+
+Examples:
+  provision exec myapp "npm install"
+  provision exec myapp "ls -la /workspace"
+  provision exec myapp "pm2 list"
+
+Commands run as appuser in /workspace directory.
+EOF
+  exit 1
+fi
+
+NAME="$1"
+shift
+COMMAND="$*"
+
+load_env
+need docker
+
+CONTAINER_NAME="${NAME}-app"
+
+# Check if container exists and is running
+if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    die "Container '${CONTAINER_NAME}' exists but is not running. Start it first with: provision start ${NAME}"
+  else
+    die "Container '${CONTAINER_NAME}' not found."
+  fi
+fi
+
+# Execute command as appuser
+# Use -it if stdin is a TTY, otherwise just -i
+if [ -t 0 ]; then
+  exec docker exec -it -u appuser -w /workspace "$CONTAINER_NAME" bash -lc "$COMMAND"
+else
+  exec docker exec -i -u appuser -w /workspace "$CONTAINER_NAME" bash -lc "$COMMAND"
+fi

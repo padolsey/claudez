@@ -171,7 +171,13 @@ Or change `KEY_FILE` in `conf/defaults.env` or `~/.provisionrc`.
 provision/bin/provision create myapp
 ```
 
-3. **Enter + start Claude** (tmux auto-attach):
+3. **List your apps** (optional):
+
+```bash
+provision/bin/provision ls
+```
+
+4. **Enter + start Claude** (tmux auto-attach):
 
 ```bash
 provision/bin/provision enter myapp
@@ -205,9 +211,44 @@ On boot, the container:
 We symlink `/home/appuser/.claude.json` → `/workspace/.claude/claude.json`.
 If you want sticky preferences across rebuilds, keep that file in your bind mount.
 
+## Available commands
+
+### Management
+- `provision create <name> [--verify]` — Build and start a new sandbox (use `--verify` to wait for Traefik routing)
+- `provision ls` — List all provisioned apps with status and URLs
+- `provision rm <name> [--force]` — Permanently delete an app (container, image, and directory)
+- `provision reset <name>` — Remove and recreate an app from scratch
+
+### Lifecycle
+- `provision start <name>` — Start a stopped container
+- `provision stop <name> [--force]` — Stop a running container
+- `provision restart <name> [--force]` — Restart a container
+
+### Development
+- `provision enter <name>` — Open shell and attach to Claude session (tmux)
+- `provision exec <name> <cmd>` — Run a command in the container as appuser
+- `provision logs <name> [options]` — View container logs (supports `-f`, `--tail`, etc.)
+- `provision status <name>` — Health checks (vanilla server + Traefik routing)
+
+### Examples
+```bash
+# Create and enter
+provision create myapp
+provision enter myapp
+
+# Quick operations
+provision logs myapp -f --tail 50
+provision exec myapp "npm install express"
+provision restart myapp --force
+
+# Cleanup
+provision stop myapp     # Save resources
+provision rm myapp       # Delete entirely
+```
+
 ## Maintainable structure
 
-- `bin/` — thin, single-purpose commands (`create`, `enter`, `reset`, `status`)
+- `bin/` — thin, single-purpose commands (one file per subcommand)
 - `lib/` — shared helpers (env loading, docker utilities, template rendering)
 - `templates/` — all generated files live here; we render with `envsubst`
 - `conf/defaults.env` — repo defaults; override in `~/.provisionrc`
@@ -219,8 +260,8 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 - **Secrets**: Prefer Docker secrets or a root-only `:ro` bind mount. Never commit keys.
 - **Health checks**: `provision status <name>` validates vanilla + Traefik routing.
 - **Debug**:
-  - `docker logs <container>` (pm2 is quiet for vanilla, by design)
-  - `docker exec -it <container> bash` then `cc` to attach Claude
+  - `provision logs <name> -f` to follow container logs (pm2 is quiet for vanilla, by design)
+  - `provision enter <name>` to open a shell and run `cc` to attach Claude
   - Inside tmux: `Ctrl-b d` to detach without killing Claude
 
 ## Common commands inside the sandbox
@@ -242,10 +283,16 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 - Alter Traefik network/name there too
 - Tweak `CLAUDE.md.tmpl` for your house rules
 
-## Uninstall / Reset
+## Cleanup
 
+**Delete an app permanently:**
 ```bash
-provision/bin/provision reset myapp
+provision rm myapp
 ```
+Removes container, image, and app directory. Use `--force` to skip confirmation.
 
-This removes the container, image, and app dir, then recreates it clean.
+**Reset an app (delete and recreate):**
+```bash
+provision reset myapp
+```
+Removes everything and recreates from scratch with fresh Next.js bootstrap.

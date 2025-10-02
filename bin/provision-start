@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision start <name>"
+
+load_env
+need docker
+
+CONTAINER_NAME="${NAME}-app"
+
+# Check if container exists
+if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  die "Container '${CONTAINER_NAME}' not found."
+fi
+
+# Check if already running
+if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  log "Container '${CONTAINER_NAME}' is already running."
+  exit 0
+fi
+
+log "Starting '${CONTAINER_NAME}'..."
+docker start "$CONTAINER_NAME" >/dev/null
+
+log "✅ Container '${NAME}' has been started."
