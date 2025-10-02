@@ -68,7 +68,9 @@ SH
 chmod +x /usr/local/bin/cc
 
 # Drop to appuser and start services
-exec su - appuser -c '
+# Note: Preserve ANTHROPIC_API_KEY in environment for Claude to use
+export ANTHROPIC_API_KEY
+exec su -m appuser -c '
   cd /workspace
   pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
   pm2 save >/dev/null 2>&1 || true
