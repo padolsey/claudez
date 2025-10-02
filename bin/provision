@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+SUB="${1:-}"; shift || true
+case "$SUB" in
+  create)  exec "$SELF_DIR/provision-create" "$@" ;;
+  enter)   exec "$SELF_DIR/provision-enter" "$@" ;;
+  reset)   exec "$SELF_DIR/provision-reset" "$@" ;;
+  status)  exec "$SELF_DIR/provision-status" "$@" ;;
+  ""|--help|-h)
+    cat <<'EOF'
+Usage:
+  provision create <name>   # build + up + bootstrap
+  provision enter  <name>   # open shell & start/attach Claude (tmux)
+  provision reset  <name>   # remove container/image/app dir then recreate
+  provision status <name>   # health checks (vanilla/Traefik)
+EOF
+    ;;
+  *) die "Unknown subcommand: $SUB" ;;
+esac

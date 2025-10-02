@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision enter <name>"
+CONTAINER_NAME="${NAME}-app"
+
+need docker
+
+# Prefer launching/attaching Claude via the tmux-backed cc wrapper.
+exec docker exec -it "$CONTAINER_NAME" bash -lc 'command -v cc >/dev/null && cc || claude || bash'

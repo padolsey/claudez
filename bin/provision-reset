@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision reset <name>"
+
+load_env
+APP_DIR="${APPS_DIR}/${NAME}"
+CONTAINER_NAME="${NAME}-app"
+
+need docker
+log "Resetting '${NAME}' — removing container/image/dir if present."
+docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+docker rmi "${NAME}-app:latest" >/dev/null 2>&1 || true
+rm -rf "$APP_DIR" || true
+
+exec "$ROOT_DIR/bin/provision-create" "$NAME"

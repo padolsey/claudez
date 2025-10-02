@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+. "$ROOT_DIR/lib/docker.sh"
+. "$ROOT_DIR/lib/render.sh"
+
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision create <name>"
+
+load_env
+APP_DIR="${APPS_DIR}/${NAME}"
+CONTAINER_NAME="${NAME}-app"
+
+need docker
+mkdir -p "$APP_DIR" "$APP_DIR/workspace"
+
+ensure_network "$TRAEFIK_NETWORK"
+
+# Anthropic key (host-side)
+ANTHROPIC_API_KEY=""
+if [ -f "$KEY_FILE" ]; then
+  ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE")"
+  [ -z "$ANTHROPIC_API_KEY" ] && log "WARNING: $KEY_FILE is empty; Claude will prompt."
+else
+  log "WARNING: $KEY_FILE not found; Claude will prompt for auth."
+fi
+
+# .env inside app dir (container env)
+cat > "${APP_DIR}/.env" <<EOF
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+CLAUDE_HOME=/home/appuser
+NODE_ENV=development
+PORT=3000
+HOST=0.0.0.0
+CHOKIDAR_USEPOLLING=1
+WATCHPACK_POLLING=true
+NEXT_TELEMETRY_DISABLED=1
+NODE_OPTIONS=--max-old-space-size=2048
+EOF
+chmod 600 "${APP_DIR}/.env"
+
+# Templates
+render "$ROOT_DIR/templates/vanilla.index.html.tmpl" "${APP_DIR}/workspace/vanilla.index.html" >/dev/null
+install -d "${APP_DIR}/workspace/vanilla"
+mv -f "${APP_DIR}/workspace/vanilla.index.html" "${APP_DIR}/workspace/vanilla/index.html"
+
+# CLAUDE.md (project guidance)
+mkdir -p "${APP_DIR}/workspace"
+CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/CLAUDE.md.tmpl" "${APP_DIR}/workspace/CLAUDE.md" >/dev/null
+
+# Dockerfile & compose
+NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
+NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
+
+# Ownership for runtime user (10001)
+chown -R 10001:10001 "${APP_DIR}/workspace" || true
+
+# Build + up
+log "Building and starting '${NAME}'…"
+( cd "${APP_DIR}" && docker compose up -d --build )
+
+wait_running "$CONTAINER_NAME"
+
+# Bootstrap Next.js (first run only)
+log "Bootstrapping Next.js into /workspace/app (first run only)…"
+docker exec -u appuser "$CONTAINER_NAME" bash -lc '
+  mkdir -p /workspace/app
+  if [ ! -f /workspace/app/package.json ]; then
+    cd /workspace/app
+    npx --yes create-next-app@latest . --ts --tailwind --eslint=false --app --use-npm
+  fi
+'
+
+# Health checks
+health_vanilla_inside "$CONTAINER_NAME"
+health_traefik_route "vanilla-${NAME}.${DOMAIN_BASE}"
+
+cat <<EOF
+
+✅ Sandbox ready
+   PROD:    https://${NAME}.${DOMAIN_BASE}        (:3000 expected)
+   DEV:     https://dev-${NAME}.${DOMAIN_BASE}    (:8000 expected)
+   VANILLA: https://vanilla-${NAME}.${DOMAIN_BASE} (static :9000 — running now)
+   Workspace: ${APP_DIR}/workspace
+   Next app:  ${APP_DIR}/workspace/app
+   Container: ${CONTAINER_NAME}
+
+Enter and start Claude:
+   provision enter ${NAME}
+EOF

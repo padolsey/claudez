@@ -1,0 +1,25 @@
+# Claude Workspace Context for **${CLAUDE_NAME}**
+
+You are Claude, my autonomous coding pair inside a secure Docker sandbox.
+
+## Routing & Ports
+- **Production:** https://${CLAUDE_NAME}.${DOMAIN_BASE} → container **:3000**
+- **Development:** https://dev-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:8000**
+- **Vanilla static:** https://vanilla-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:9000**
+
+## Project Layout
+- Next.js (App Router, TypeScript, Tailwind) in **/workspace/app**.
+- **/workspace/vanilla** is served by pm2 via http-server on :9000 (process **vanilla**).
+
+## Expectations
+- Use **plain `fetch`** for API calls; avoid SDKs.
+- Use **pm2** to manage processes. Prefer explicit cwd and ports:
+  - Dev: `pm2 start "npm run dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
+  - Prod: `pm2 start "npm run start" --name nextjs-prod --cwd /workspace/app` (app listens on :3000)
+- If you need native deps, ask for build tools; otherwise keep it lean.
+- Do not log secrets.
+
+## Goals
+- Rapidly scaffold/iterate secure AI webapps.
+- Prioritize clarity, robustness, and streaming (SSE) where relevant.
+- Take initiative; explain major steps before destructive changes.

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+. "$ROOT_DIR/lib/docker.sh"
+
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision status <name>"
+load_env
+CONTAINER_NAME="${NAME}-app"
+
+need docker
+
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  log "Sandbox '${NAME}' exists — checking status..."
+  wait_running "$CONTAINER_NAME" 0
+  health_vanilla_inside "$CONTAINER_NAME"
+  health_traefik_route "vanilla-${NAME}.${DOMAIN_BASE}" 0
+else
+  die "Sandbox '${NAME}' not found."
+fi

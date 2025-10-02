@@ -1,0 +1,80 @@
+# syntax=docker/dockerfile:1
+ARG NODE_VERSION=${NODE_VERSION}
+FROM node:${NODE_VERSION}-slim
+
+# base deps (+ tmux so Claude sessions survive disconnects)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      tini wget ca-certificates git tmux \
+    && rm -rf /var/lib/apt/lists/*
+
+# global tools
+RUN npm install -g @anthropic-ai/claude-code pm2 http-server
+
+# startup script (as root), then drop privileges
+RUN install -d /usr/local/bin && \
+    cat >/usr/local/bin/startup.sh <<'EOS'
+#!/usr/bin/env bash
+set -e
+
+# Pre-seed Claude onboarding state for the runtime user every boot
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  HOME="${HOME:-/home/appuser}"
+  mkdir -p "${HOME}"
+  KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 || true)"
+  TARGET_JSON="${HOME}/.claude.json"
+  # If symlinked (persisted), resolve real path
+  [ -L "${TARGET_JSON}" ] && TARGET_JSON="$(readlink -f "${TARGET_JSON}")"
+  install -d "$(dirname "$TARGET_JSON")"
+  cat > "${TARGET_JSON}" <<JSON
+{
+  "customApiKeyResponses": { "approved": ["${KEY_TAIL}"], "rejected": [] },
+  "shiftEnterKeyBindingInstalled": true,
+  "theme": "dark",
+  "hasCompletedOnboarding": true
+}
+JSON
+  chmod 600 "${TARGET_JSON}"
+fi
+
+# cc wrapper — runs Claude inside tmux (auto-attach), from /workspace
+cat >/usr/local/bin/cc <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+cd /workspace
+# Optional custom session name: cc -s mytask
+SESS="claude"
+if [ "${1:-}" = "-s" ]; then SESS="${2:-claude}"; shift 2; fi
+
+# If already inside tmux, just run claude
+if [ -n "${TMUX:-}" ]; then
+  exec claude "$@"
+fi
+
+# If tmux exists, attach/create; else fallback to claude
+if command -v tmux >/dev/null 2>&1; then
+  exec tmux new-session -A -s "$SESS" "claude $*"
+else
+  exec claude "$@"
+fi
+SH
+chmod +x /usr/local/bin/cc
+
+# start vanilla static server (quiet) and keep container alive
+pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
+pm2 save >/dev/null 2>&1 || true
+sleep infinity
+EOS
+RUN chmod +x /usr/local/bin/startup.sh
+
+# runtime user
+RUN useradd -m -u 10001 appuser
+WORKDIR /workspace
+USER appuser
+
+# Optional persisted config symlink: store file in /workspace/.claude/claude.json
+RUN mkdir -p /workspace/.claude && \
+    [ -e /home/appuser/.claude.json ] || ln -s /workspace/.claude/claude.json /home/appuser/.claude.json
+
+ENV PORT=3000
+ENTRYPOINT ["/usr/bin/tini","--"]
+CMD ["bash","-lc","/usr/local/bin/startup.sh"]
