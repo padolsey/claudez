@@ -1,9 +1,41 @@
-# Claude Sandbox Provisioner (split, sane, and durable)
+# Claude Sandbox Provisioner
 
-This repo creates/enters **Claude Code** sandboxes (Docker + Traefik) with:
-- Zero onboarding/OAuth prompts (uses your `ANTHROPIC_API_KEY`)
-- A tmux-backed `cc` wrapper so Claude sessions **survive disconnects**
-- Clean, maintainable split: `bin/` + `lib/` + `templates/` + `conf/`
+A tool for spinning up isolated, persistent **Claude Code** development environments with automatic HTTPS routing.
+
+## What is this?
+
+This provisions Docker-based sandboxes where each project gets:
+- Its own **Claude Code** environment with dedicated workspace
+- **Automatic HTTPS** via Traefik + Let's Encrypt (prod, dev, and vanilla routes)
+- **Persistent sessions** that survive SSH/network disconnects (tmux-backed)
+- **Zero Claude onboarding** on every restart (pre-configured with your API key)
+
+Each sandbox is isolated, reproducible, and accessible at `https://<project>.<your-domain>`.
+
+## Prerequisites
+
+Before using this tool, your server needs:
+
+1. **Docker** and **docker compose** installed
+2. **Traefik** reverse proxy running with:
+   - A Docker network named `edge` (or customize `TRAEFIK_NETWORK` in config)
+   - Let's Encrypt configured for automatic SSL
+   - Listening for container labels to route traffic
+3. **DNS** wildcard record pointing `*.<your-domain>` to your server
+4. **Anthropic API key** stored securely on the host
+
+If you don't have Traefik set up yet, you'll need to deploy it first as the reverse proxy layer that handles all HTTPS routing and certificates.
+
+## How it works
+
+1. You run `provision create myapp`
+2. The tool generates a Docker container with Node.js, Claude Code, tmux, and pm2
+3. Traefik detects the container labels and creates routes:
+   - `https://myapp.example.com` → port 3000 (prod)
+   - `https://dev-myapp.example.com` → port 8000 (dev)
+   - `https://vanilla-myapp.example.com` → port 9000 (auto-running vanilla app)
+4. Let's Encrypt automatically provisions SSL certificates
+5. You enter the sandbox and run `cc` to start Claude in a persistent tmux session
 
 ## Quick start
 
