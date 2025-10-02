@@ -10,4 +10,5 @@ CONTAINER_NAME="${NAME}-app"
 need docker
 
 # Prefer launching/attaching Claude via the tmux-backed cc wrapper.
-exec docker exec -it "$CONTAINER_NAME" bash -lc 'command -v cc >/dev/null && cc || claude || bash'
+# IMPORTANT: Run as appuser so Claude finds /home/appuser/.claude.json
+exec docker exec -it -u appuser "$CONTAINER_NAME" bash -lc 'command -v cc >/dev/null && cc || claude || bash'
