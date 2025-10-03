@@ -48,7 +48,7 @@ HOST=0.0.0.0
 CHOKIDAR_USEPOLLING=1
 WATCHPACK_POLLING=true
 NEXT_TELEMETRY_DISABLED=1
-NODE_OPTIONS=--max-old-space-size=2048
+NODE_OPTIONS=--max-old-space-size=3584
 EOF
 chmod 600 "${APP_DIR}/.env"
 
@@ -63,7 +63,7 @@ CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/CLAUD
 
 # Dockerfile & compose
 NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
-NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
+NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" MEM_RESERVATION="$MEM_RESERVATION" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
 
 # Ownership for runtime user (10001)
 chown -R 10001:10001 "${APP_DIR}/workspace" || true
