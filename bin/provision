@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 SUB="${1:-}"; shift || true
 case "$SUB" in
   create)  exec "$SELF_DIR/provision-create" "$@" ;;
+  spawn)   exec "$SELF_DIR/provision-spawn" "$@" ;;
   enter)   exec "$SELF_DIR/provision-enter" "$@" ;;
   shell)   exec "$SELF_DIR/provision-shell" "$@" ;;
   reset)   exec "$SELF_DIR/provision-reset" "$@" ;;
@@ -22,6 +23,7 @@ case "$SUB" in
     cat <<'EOF'
 Usage:
   provision create <name> [--verify] # build + up + bootstrap (--verify checks Traefik routing)
+  provision spawn  <name> [--verify] # create + enter in one command
   provision enter  <name>         # open shell & start/attach Claude (tmux)
   provision shell  <name>         # open normal shell without starting Claude
   provision reset  <name>         # remove container/image/app dir then recreate

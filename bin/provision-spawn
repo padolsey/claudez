@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+VERIFY=0
+NAME=""
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --verify) VERIFY=1; shift ;;
+    -*) die "Unknown flag: $1" ;;
+    *) NAME="$1"; shift ;;
+  esac
+done
+
+[ -z "$NAME" ] && die "Usage: provision spawn <name> [--verify]"
+
+# Run create (not with exec since we need to continue)
+if [ "$VERIFY" -eq 1 ]; then
+  "$SELF_DIR/provision-create" "$NAME" --verify
+else
+  "$SELF_DIR/provision-create" "$NAME"
+fi
+
+# Enter if create succeeded
+log "Entering container…"
+exec "$SELF_DIR/provision-enter" "$NAME"

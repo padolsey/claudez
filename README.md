@@ -235,6 +235,7 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 
 ### Management
 - `provision create <name> [--verify]` — Build and start a new sandbox (use `--verify` to wait for Traefik routing)
+- `provision spawn <name> [--verify]` — Create and enter in one command (combines create + enter)
 - `provision ls` — List all provisioned apps with status and URLs
 - `provision rm <name> [--force]` — Permanently delete an app (container, image, and directory)
 - `provision reset <name>` — Remove and recreate an app from scratch
@@ -253,9 +254,12 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 
 ### Examples
 ```bash
-# Create and enter
+# Create and enter (two commands)
 provision create myapp
 provision enter myapp
+
+# Or spawn (one command)
+provision spawn myapp
 
 # Quick operations
 provision logs myapp -f --tail 50
