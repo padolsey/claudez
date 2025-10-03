@@ -203,7 +203,7 @@ If your client drops (Termius/mosh), just re-run the same command to reattach.
 ## Resource Limits & Security
 
 Each sandbox container has:
-- **1GB RAM limit** - prevents memory exhaustion
+- **2GB RAM limit** - enough for Next.js builds + dev server
 - **1 CPU core** - prevents CPU hogging
 - **PM2 log rotation** - max 10MB per log, 5 files retained, compressed
 - **Disk monitoring** - warns at 80% usage on startup
@@ -334,7 +334,7 @@ provision exec myapp "rm -rf /workspace/app/.next"
 ```
 
 ### Memory/CPU issues
-Container is limited to 1GB RAM and 1 CPU. Check resource usage:
+Container is limited to 2GB RAM and 1 CPU. Check resource usage:
 ```bash
 docker stats xxx-app
 ```

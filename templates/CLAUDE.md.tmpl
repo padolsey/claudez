@@ -6,7 +6,7 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - **You're running inside a Docker container** - Don't try to install Docker, systemd, or other system services
 - **User context:** You run as `appuser` (UID 10001), not root - you cannot `sudo` or install system packages
 - **Tmux session:** You're inside tmux session `claude` - use `Ctrl+B D` to detach (don't exit the shell)
-- **Resource limits:** 1GB RAM, 1 CPU core - be mindful of heavy builds and concurrent processes
+- **Resource limits:** 2GB RAM, 1 CPU core - be mindful of heavy builds and concurrent processes
 - **Network access:** Full outbound internet access; only ports 3000/8000/9000 are routed via Traefik
 
 ## Routing & Ports
@@ -56,7 +56,7 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 
 ## Resource Management
 - **Disk space:** node_modules and build artifacts can be large - run `pnpm prune` or `rm -rf .next` if needed
-- **Memory:** With 1GB RAM, avoid running too many concurrent processes
+- **Memory:** With 2GB RAM, you can run dev + occasional builds, but avoid too many concurrent heavy processes
 - **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
 - **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages
 
