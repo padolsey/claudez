@@ -60,6 +60,12 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
 - **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages
 
+## Debugging & Recovery
+- **Session logs:** Your terminal I/O is automatically saved to `/workspace/.claude-logs/` (via tmux pipe-pane)
+- **Memory logs:** Low memory warnings (<100MB) are logged to `/workspace/.debug/memory.log`
+- **Container logs:** Docker logs capture stdout/stderr, accessible via `docker logs` or `provision logs`
+- **Purpose:** If the session crashes or OOM kills, these logs help diagnose and resume work
+
 ## Goals
 - Rapidly scaffold/iterate secure AI webapps.
 - Prioritize clarity, robustness, and streaming (SSE) where relevant.

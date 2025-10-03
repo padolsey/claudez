@@ -44,6 +44,11 @@ services:
     mem_limit: ${MEM_LIMIT}
     cpus: "${CPU_LIMIT}"
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000"]
       interval: 30s

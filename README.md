@@ -278,6 +278,42 @@ provision rm myapp       # Delete entirely
 - `templates/` — all generated files live here; we render with `envsubst`
 - `conf/defaults.env` — repo defaults; override in `~/.provisionrc`
 
+## Logging & Debugging
+
+Each sandbox has **three automatic logging layers** for emergency recovery and debugging:
+
+### 1. Session Logs (tmux)
+- **Location:** `/workspace/.claude-logs/` (inside container)
+- **Captures:** Full terminal I/O (both user input and Claude output)
+- **Retention:** Persistent, stored in bind mount
+- **Access:**
+  ```bash
+  provision shell myapp
+  cat /workspace/.claude-logs/claude-*.log | tail -500
+  ```
+- **Survives:** Crashes, OOM kills, network disconnects
+
+### 2. Container Logs (Docker)
+- **Captures:** Container stdout/stderr
+- **Retention:** 5 files × 100MB each (500MB total)
+- **Access:**
+  ```bash
+  provision logs myapp -f --tail 100
+  # or directly:
+  docker logs myapp-app
+  ```
+
+### 3. Memory Pressure Logs
+- **Location:** `/workspace/.debug/memory.log` (inside container)
+- **Captures:** When available memory drops below 100MB, logs top 15 processes
+- **Purpose:** Diagnose what caused OOM kills
+- **Access:**
+  ```bash
+  provision exec myapp "cat /workspace/.debug/memory.log"
+  ```
+
+**Recovery workflow:** If a session crashes, check session logs first (most detailed), then memory logs (if OOM suspected), then container logs (for startup issues).
+
 ## Troubleshooting
 
 ### Container exited unexpectedly
@@ -302,11 +338,22 @@ Container is limited to 1GB RAM and 1 CPU. Check resource usage:
 ```bash
 docker stats xxx-app
 ```
+If OOM killed, check memory pressure logs:
+```bash
+provision exec myapp "cat /workspace/.debug/memory.log"
+```
 
 ### PM2 processes not persisting
 Inner Claude forgot to run `pm2 save`. The watchdog runs it every 5 minutes, but manual save is safer:
 ```bash
 provision exec myapp "pm2 save"
+```
+
+### Session crashed or lost work
+Check the automatic session logs to see what happened before the crash:
+```bash
+provision shell myapp
+tail -500 /workspace/.claude-logs/claude-*.log
 ```
 
 ## Ops notes (strong opinions)
