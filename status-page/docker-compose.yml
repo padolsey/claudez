@@ -1,0 +1,28 @@
+services:
+  status:
+    image: python:3.11-slim
+    container_name: provision-status
+    restart: unless-stopped
+    working_dir: /status
+    command: python3 -m http.server 9999
+    volumes:
+      - /opt/status-page:/status:ro
+    networks:
+      - edge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.status.rule=Host(`status.grok.foo`)"
+      - "traefik.http.routers.status.entrypoints=websecure"
+      - "traefik.http.routers.status.tls.certresolver=letsencrypt"
+      - "traefik.http.services.status.loadbalancer.server.port=9999"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: "0.25"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+
+networks:
+  edge:
+    external: true

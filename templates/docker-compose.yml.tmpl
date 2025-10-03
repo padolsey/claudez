@@ -44,6 +44,7 @@ services:
     mem_reservation: ${MEM_RESERVATION}
     mem_limit: ${MEM_LIMIT}
     cpus: "${CPU_LIMIT}"
+    oom_score_adj: 500  # Make sandboxes preferred OOM kill targets (protects host services)
     restart: unless-stopped
     logging:
       driver: "json-file"

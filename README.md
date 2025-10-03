@@ -14,6 +14,38 @@ This provisions Docker-based sandboxes where each project gets:
 
 Each sandbox is isolated, reproducible, and accessible at `https://<project>.<your-domain>`.
 
+## Quick Reference
+
+**Creating sandboxes:**
+```bash
+provision create myapp              # Standard (3GB memory)
+provision create bigapp --large     # Large (5GB memory)
+provision spawn myapp               # Create + enter in one command
+```
+
+**Daily workflow:**
+```bash
+provision enter myapp               # Attach to sandbox
+cc                                  # Start Claude (inside container)
+provision ls                        # List all sandboxes
+provision stop myapp                # Stop when idle
+```
+
+**Monitoring:**
+- Status page: `https://status.<your-domain>` (shows memory, CPU, disk, processes)
+- Check health: `provision status myapp`
+- View logs: `provision logs myapp -f`
+
+**Capacity:**
+- **Max sandboxes:** 12 standard (3GB) or 8 large (5GB)
+- **Current usage:** Check status page "Commit Limit" metric
+- **When >75%:** Stop idle sandboxes or remove unused ones
+
+**Memory issues:**
+- If build OOMs: Recreate with `--large` flag
+- Check memory logs: `provision exec myapp "cat /workspace/.debug/memory.log"`
+- Monitor status page: Yellow = warning, Red = critical
+
 ## Prerequisites
 
 Before using this tool, your server needs:
@@ -125,12 +157,20 @@ EOF
 # Edit with your actual domain
 nano ~/.provisionrc
 
-# 9. Create your first sandbox
+# 9. Set up monitoring and protections (one-time)
+~/provision/bin/provision setup-status-page
+~/provision/bin/provision protect-services
+(crontab -l 2>/dev/null; echo "@reboot ~/provision/bin/provision protect-services") | crontab -
+
+# 10. Create your first sandbox
 ~/provision/bin/provision create myapp
 
-# 10. Enter and start Claude
+# 11. Enter and start Claude
 ~/provision/bin/provision enter myapp
 # Inside: run 'cc' to attach Claude in tmux
+
+# 12. Monitor your sandboxes
+# Visit https://status.yourdomain.com (shows memory, CPU, disk, processes)
 ```
 
 **What you need before starting:**
@@ -203,14 +243,22 @@ If your client drops (Termius/mosh), just re-run the same command to reattach.
 ## Resource Limits & Security
 
 Each sandbox container has:
-- **2GB RAM limit** - enough for Next.js builds + dev server
+- **3GB RAM limit** (standard) or **5GB** (with `--large` flag) - handles Next.js builds
+- **1.5GB RAM guaranteed** (memory reservation) - protected from host memory pressure
 - **1 CPU core** - prevents CPU hogging
 - **PM2 log rotation** - max 10MB per log, 5 files retained, compressed
 - **Disk monitoring** - warns at 80% usage on startup
 - **Auto-save watchdog** - `pm2 save` runs every 5 minutes
 - **Health checks** - vanilla server monitored every 30s
 - **Dropped capabilities** - container runs with minimal privileges
+- **OOM protection** - sandboxes killed first, system services protected
 - **Secrets protection** - comprehensive `.gitignore` prevents accidental commits
+
+**Host-level protections:**
+- **16GB swap space** - prevents hard OOM failures
+- **Strict memory overcommit** - kernel enforces 40GB allocation limit
+- **Sandbox quota** - max 12 sandboxes (prevents overprovisioning)
+- **Status page** - real-time monitoring at `https://status.<your-domain>`
 
 Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explaining:
 - Environment constraints and best practices
@@ -234,8 +282,10 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 ## Available commands
 
 ### Management
-- `provision create <name> [--verify]` — Build and start a new sandbox (use `--verify` to wait for Traefik routing)
-- `provision spawn <name> [--verify]` — Create and enter in one command (combines create + enter)
+- `provision create <name> [--verify] [--large]` — Build and start a new sandbox
+  - `--verify`: Wait for Traefik routing and verify connectivity
+  - `--large`: Use 5GB memory limit for heavy builds (default: 3GB)
+- `provision spawn <name> [--verify] [--large]` — Create and enter in one command
 - `provision ls` — List all provisioned apps with status and URLs
 - `provision rm <name> [--force]` — Permanently delete an app (container, image, and directory)
 - `provision reset <name>` — Remove and recreate an app from scratch
@@ -252,23 +302,203 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 - `provision logs <name> [options]` — View container logs (supports `-f`, `--tail`, etc.)
 - `provision status <name>` — Health checks (vanilla server + Traefik routing)
 
+### Monitoring & Operations
+- `provision setup-status-page [interval]` — Deploy status page at `https://status.<domain>`
+  - Shows host resources, container stats, memory pressure, PM2 processes
+  - Optional interval in seconds (default: 30s)
+- `provision protect-services` — Protect Docker/Traefik/SSH from OOM killer
+  - Run once after setup, then add to crontab for persistence
+
 ### Examples
 ```bash
-# Create and enter (two commands)
+# Standard sandbox (3GB memory)
 provision create myapp
 provision enter myapp
 
-# Or spawn (one command)
+# Large sandbox for complex builds (5GB memory)
+provision create bigapp --large
+provision enter bigapp
+
+# One-command creation + entry
 provision spawn myapp
 
 # Quick operations
 provision logs myapp -f --tail 50
-provision exec myapp "npm install express"
+provision exec myapp "pnpm install"
 provision restart myapp --force
+
+# Monitoring
+provision ls                    # List all sandboxes
+provision status myapp          # Check health
+# Visit https://status.grok.foo  # Real-time monitoring dashboard
 
 # Cleanup
 provision stop myapp     # Save resources
 provision rm myapp       # Delete entirely
+```
+
+## Recommended Workflows
+
+### Initial Server Setup
+
+After completing the [Fresh Ubuntu Server Setup](#fresh-ubuntu-server-setup), run these one-time operations:
+
+```bash
+# 1. Deploy status page for monitoring
+provision setup-status-page
+
+# 2. Protect critical services from OOM
+provision protect-services
+
+# 3. Make OOM protection persistent across reboots
+(crontab -l 2>/dev/null; echo "@reboot /root/provision/bin/provision protect-services") | crontab -
+
+# 4. Create your first sandbox
+provision create myproject
+provision enter myproject
+```
+
+Visit `https://status.grok.foo` to monitor your sandboxes in real-time.
+
+### Daily Development Workflow
+
+**Starting work:**
+```bash
+# Attach to existing sandbox (reconnects to Claude session)
+provision enter myproject
+
+# Inside container, attach to Claude tmux session
+cc
+```
+
+If your SSH/network drops, just run `provision enter myproject` again - your Claude session is still running.
+
+**Managing multiple sandboxes:**
+```bash
+# See what's running
+provision ls
+
+# Stop idle sandboxes to save resources
+provision stop oldproject
+
+# Start when needed again
+provision start oldproject
+```
+
+**When builds fail with OOM:**
+```bash
+# Check status page: https://status.grok.foo
+# Look at "Commit Limit" - if >75%, stop some sandboxes
+
+# If build needs more memory, recreate with --large flag
+provision rm myproject
+provision create myproject --large  # 5GB instead of 3GB
+```
+
+### Capacity Management
+
+**Understanding your limits:**
+- Host: 30GB RAM + 16GB swap = 40GB commit limit
+- Standard sandbox: 3GB limit, 1.5GB reserved
+- Large sandbox: 5GB limit, 1.5GB reserved
+- **Safe capacity: ~12 sandboxes** (or 8 large)
+
+**When approaching capacity:**
+```bash
+# Check status page - if "Commit Limit" is yellow/red:
+
+# 1. Stop idle sandboxes
+provision ls
+provision stop sandbox1 sandbox2 sandbox3
+
+# 2. Or remove unused ones
+provision rm old-prototype
+
+# 3. Monitor via status page
+# Visit https://status.grok.foo - check host commit % drops
+```
+
+**Quota reached error:**
+```
+Maximum sandboxes (12) reached. Current: 12
+
+This limit protects host stability. To create new sandboxes:
+- Stop idle ones: provision stop <name>
+- Remove unused ones: provision rm <name>
+```
+
+### Debugging Workflow
+
+**Sandbox won't start:**
+```bash
+provision logs myapp --tail 50
+# Look for errors in startup sequence
+```
+
+**Claude session crashed:**
+```bash
+# Check automatic session logs
+provision shell myapp
+tail -500 /workspace/.claude-logs/claude-*.log
+```
+
+**Build hit OOM:**
+```bash
+# Check if memory pressure was logged
+provision exec myapp "cat /workspace/.debug/memory.log"
+
+# If file exists, you hit memory limits
+# Recreate with --large flag
+```
+
+**Disk space issues:**
+```bash
+# Check what's using space
+provision exec myapp "du -sh /workspace/* | sort -rh | head -10"
+
+# Clean up
+provision exec myapp "rm -rf /workspace/app/node_modules"
+provision exec myapp "rm -rf /workspace/app/.next"
+```
+
+**Status page shows high memory:**
+- Yellow (75%): Start planning to stop idle sandboxes
+- Red (>90%): Immediately stop sandboxes or risk OOM
+- Check which sandbox is using most: Look at individual container cards
+
+### Maintenance Tasks
+
+**Weekly:**
+```bash
+# Check status page for trends
+# Any sandboxes consistently hitting >80% memory? Consider --large
+
+# Clean up stopped containers
+provision ls | grep stopped
+provision rm unused-sandbox-1 unused-sandbox-2
+```
+
+**Monthly:**
+```bash
+# Check disk usage
+df -h /opt/apps
+
+# If >80%, investigate large workspaces
+du -sh /opt/apps/* | sort -rh | head -10
+
+# Remove old sandboxes
+provision rm old-prototype-from-january
+```
+
+**After server reboot:**
+```bash
+# OOM protection is auto-applied via crontab
+# Status page systemd timer auto-starts
+# All sandboxes auto-start (restart: unless-stopped)
+
+# Just verify everything came back
+provision ls
+# Visit https://status.grok.foo
 ```
 
 ## Maintainable structure
@@ -277,6 +507,7 @@ provision rm myapp       # Delete entirely
 - `lib/` — shared helpers (env loading, docker utilities, template rendering)
 - `templates/` — all generated files live here; we render with `envsubst`
 - `conf/defaults.env` — repo defaults; override in `~/.provisionrc`
+- `status-page/` — status monitoring page (HTML, metrics collector)
 
 ## Logging & Debugging
 
@@ -334,14 +565,32 @@ provision exec myapp "rm -rf /workspace/app/.next"
 ```
 
 ### Memory/CPU issues
-Container is limited to 2GB RAM and 1 CPU. Check resource usage:
+Standard containers are limited to 3GB RAM (5GB with `--large` flag) and 1 CPU.
+
+**Check resource usage:**
 ```bash
-docker stats xxx-app
+# Real-time stats
+docker stats myapp-app
+
+# Or check status page
+# Visit https://status.grok.foo
 ```
-If OOM killed, check memory pressure logs:
+
+**If OOM killed:**
 ```bash
+# Check memory pressure logs
 provision exec myapp "cat /workspace/.debug/memory.log"
+
+# If file exists and shows low memory warnings, you need more RAM
+# Recreate with --large flag
+provision rm myapp
+provision create myapp --large  # 5GB limit
 ```
+
+**Memory best practices:**
+- Standard (3GB): Handles most Next.js apps (up to ~100 pages)
+- Large (5GB): For complex builds with heavy dependencies
+- Check status page regularly - if a sandbox consistently uses >80%, consider --large
 
 ### PM2 processes not persisting
 Inner Claude forgot to run `pm2 save`. The watchdog runs it every 5 minutes, but manual save is safer:

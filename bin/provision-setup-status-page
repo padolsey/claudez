@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+load_env
+need docker
+
+STATUS_DIR="/opt/status-page"
+COMPOSE_DIR="$ROOT_DIR/status-page"
+TIMER_INTERVAL="${1:-30}" # seconds between updates
+
+log "Setting up status page at status.${DOMAIN_BASE}..."
+
+# 1. Create status directory and copy files
+log "Creating ${STATUS_DIR}..."
+sudo mkdir -p "$STATUS_DIR"
+sudo cp "$COMPOSE_DIR/index.html" "$STATUS_DIR/"
+sudo cp "$COMPOSE_DIR/collect-metrics.sh" "$STATUS_DIR/"
+sudo chmod +x "$STATUS_DIR/collect-metrics.sh"
+
+# 2. Run initial collection
+log "Running initial metrics collection..."
+sudo "$STATUS_DIR/collect-metrics.sh" "$STATUS_DIR/metrics.json"
+
+# 3. Set up systemd timer
+log "Installing systemd timer (${TIMER_INTERVAL}s interval)..."
+
+sudo tee /etc/systemd/system/provision-status-collect.service >/dev/null <<EOF
+[Unit]
+Description=Provision Status Metrics Collection
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=${STATUS_DIR}/collect-metrics.sh ${STATUS_DIR}/metrics.json
+StandardOutput=journal
+StandardError=journal
+EOF
+
+sudo tee /etc/systemd/system/provision-status-collect.timer >/dev/null <<EOF
+[Unit]
+Description=Provision Status Metrics Collection Timer
+After=docker.service
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=${TIMER_INTERVAL}s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable provision-status-collect.timer
+sudo systemctl start provision-status-collect.timer
+
+log "Timer installed and started."
+
+# 4. Ensure edge network exists
+if ! docker network inspect edge >/dev/null 2>&1; then
+  log "Creating 'edge' network..."
+  docker network create edge >/dev/null
+fi
+
+# 5. Deploy status service
+log "Deploying status page container..."
+cd "$COMPOSE_DIR"
+docker compose up -d
+
+log "Waiting for container to start..."
+sleep 2
+
+# 6. Verify
+if docker ps --format '{{.Names}}' | grep -q "^provision-status$"; then
+  log "✓ Status page deployed successfully!"
+  log ""
+  log "Access at: https://status.${DOMAIN_BASE}"
+  log ""
+  log "Metrics update every ${TIMER_INTERVAL}s via systemd timer:"
+  log "  - View timer status: systemctl status provision-status-collect.timer"
+  log "  - View service logs: journalctl -u provision-status-collect.service"
+  log "  - Manual collection: sudo ${STATUS_DIR}/collect-metrics.sh"
+  log ""
+  log "To change update interval:"
+  log "  provision setup-status-page <seconds>"
+else
+  die "Status page container failed to start. Check: docker logs provision-status"
+fi

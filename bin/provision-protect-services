@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+log "Protecting critical services from OOM killer..."
+
+# Protect Docker daemon
+if pgrep -x dockerd >/dev/null; then
+  DOCKERD_PID=$(pgrep -x dockerd)
+  echo -500 | sudo tee /proc/$DOCKERD_PID/oom_score_adj >/dev/null
+  log "✓ Protected dockerd (PID $DOCKERD_PID)"
+else
+  log "⚠ dockerd not found"
+fi
+
+# Protect Traefik (might be named traefik or have full path)
+if pgrep -x traefik >/dev/null; then
+  TRAEFIK_PID=$(pgrep -x traefik)
+  echo -500 | sudo tee /proc/$TRAEFIK_PID/oom_score_adj >/dev/null
+  log "✓ Protected traefik (PID $TRAEFIK_PID)"
+elif docker ps --format '{{.Names}}' | grep -q "^traefik$"; then
+  # Traefik running in container
+  TRAEFIK_CONTAINER_PID=$(docker inspect -f '{{.State.Pid}}' traefik 2>/dev/null || echo "")
+  if [ -n "$TRAEFIK_CONTAINER_PID" ] && [ "$TRAEFIK_CONTAINER_PID" != "0" ]; then
+    echo -500 | sudo tee /proc/$TRAEFIK_CONTAINER_PID/oom_score_adj >/dev/null
+    log "✓ Protected traefik container (PID $TRAEFIK_CONTAINER_PID)"
+  fi
+else
+  log "⚠ traefik not found (may not be running)"
+fi
+
+# Protect SSH daemon
+if pgrep -x sshd >/dev/null; then
+  for PID in $(pgrep -x sshd); do
+    echo -500 | sudo tee /proc/$PID/oom_score_adj >/dev/null 2>&1 || true
+  done
+  log "✓ Protected sshd"
+else
+  log "⚠ sshd not found"
+fi
+
+log ""
+log "OOM protection applied. Critical services will be spared during memory pressure."
+log "To make this persistent across reboots, add to crontab:"
+log "  @reboot /root/provision/bin/provision protect-services"

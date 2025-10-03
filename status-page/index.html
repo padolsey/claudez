@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provision Status</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .blink { animation: blink 1s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
+  <div class="max-w-7xl mx-auto">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold mb-2">Provision Status</h1>
+      <div class="flex items-center gap-4 text-sm text-gray-400">
+        <span id="last-update">Loading...</span>
+        <span id="auto-refresh" class="flex items-center gap-2">
+          <span class="w-2 h-2 bg-green-500 rounded-full blink"></span>
+          Auto-refresh: 10s
+        </span>
+      </div>
+    </header>
+
+    <section class="mb-8 bg-gray-800 rounded-lg p-6">
+      <h2 class="text-xl font-semibold mb-4">Host Resources</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="host-metrics">
+        <div class="text-center">
+          <div class="text-gray-400 text-sm mb-1">Memory</div>
+          <div class="text-2xl font-mono" id="host-memory">--</div>
+        </div>
+        <div class="text-center">
+          <div class="text-gray-400 text-sm mb-1">Swap</div>
+          <div class="text-2xl font-mono" id="host-swap">--</div>
+        </div>
+        <div class="text-center">
+          <div class="text-gray-400 text-sm mb-1 flex items-center justify-center gap-1">
+            <span>Commit Limit</span>
+            <span class="cursor-help" title="Memory Overcommit: Total memory promised to processes by the kernel. When this reaches 100%, new allocations fail (prevents OOM). Current limit = (RAM × 80%) + Swap = 40GB.">ⓘ</span>
+          </div>
+          <div class="text-2xl font-mono" id="host-commit">--</div>
+        </div>
+        <div class="text-center">
+          <div class="text-gray-400 text-sm mb-1">Disk Usage</div>
+          <div class="text-2xl font-mono" id="host-disk">--</div>
+        </div>
+      </div>
+      <div class="mt-4 text-sm text-gray-400 text-center">
+        <span id="host-containers">-- containers</span> •
+        <span id="host-risk-level"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Sandboxes</h2>
+      <div id="containers" class="grid grid-cols-1 gap-4">
+        <div class="text-center text-gray-500 py-8">Loading containers...</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const METRICS_URL = '/metrics.json';
+    const REFRESH_INTERVAL = 10000; // 10 seconds
+
+    function formatBytes(kb) {
+      if (kb < 1024) return kb.toFixed(0) + ' KB';
+      if (kb < 1024 * 1024) return (kb / 1024).toFixed(1) + ' MB';
+      return (kb / 1024 / 1024).toFixed(2) + ' GB';
+    }
+
+    function formatUptime(timestamp) {
+      if (!timestamp) return 'N/A';
+      const start = new Date(timestamp);
+      const now = new Date();
+      const diff = now - start;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    }
+
+    function getStatusColor(state, health) {
+      if (state !== 'running') return 'bg-red-900 border-red-700';
+      if (health === 'unhealthy') return 'bg-yellow-900 border-yellow-700';
+      return 'bg-green-900 border-green-700';
+    }
+
+    function getMemoryColor(percent) {
+      if (percent >= 90) return 'text-red-400';
+      if (percent >= 75) return 'text-yellow-400';
+      return 'text-green-400';
+    }
+
+    function getCpuColor(percent) {
+      if (percent >= 80) return 'text-red-400';
+      if (percent >= 50) return 'text-yellow-400';
+      return 'text-green-400';
+    }
+
+    function renderContainer(container) {
+      const statusColor = getStatusColor(container.state, container.health);
+      const memColor = getMemoryColor(container.memory_percent);
+      const cpuColor = getCpuColor(container.cpu_percent);
+      const uptime = formatUptime(container.started_at);
+
+      const pm2Html = container.pm2_processes.length > 0 ? `
+        <div class="border-t border-gray-700 pt-3 mt-3">
+          <div class="text-xs font-semibold text-gray-400 mb-2">PM2 Processes</div>
+          <div class="space-y-1">
+            ${container.pm2_processes.map(p => `
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-mono">${p.name}</span>
+                <span class="flex items-center gap-2">
+                  <span class="${p.status === 'online' ? 'text-green-400' : 'text-red-400'}">${p.status}</span>
+                  <span class="text-gray-500">${p.cpu}% CPU</span>
+                  <span class="text-gray-500">${(p.memory / 1024 / 1024).toFixed(0)}MB</span>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
+
+      const memoryPressureHtml = container.memory_pressure_events.length > 0 ? `
+        <div class="border-t border-gray-700 pt-3 mt-3">
+          <div class="text-xs font-semibold text-red-400 mb-2">⚠️ Recent Memory Pressure Events</div>
+          <div class="space-y-1 text-xs font-mono text-gray-400 max-h-32 overflow-y-auto">
+            ${container.memory_pressure_events.map(e => `<div>${e}</div>`).join('')}
+          </div>
+        </div>
+      ` : '';
+
+      return `
+        <div class="border-2 ${statusColor} rounded-lg p-5 transition-all">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h3 class="text-lg font-bold mb-1">${container.name}</h3>
+              <div class="flex items-center gap-3 text-sm">
+                <span class="capitalize ${container.state === 'running' ? 'text-green-400' : 'text-red-400'}">
+                  ${container.state}
+                </span>
+                ${container.health !== 'none' ? `
+                  <span class="capitalize ${container.health === 'healthy' ? 'text-green-400' : 'text-yellow-400'}">
+                    ${container.health}
+                  </span>
+                ` : ''}
+                <span class="text-gray-500">Uptime: ${uptime}</span>
+                ${container.restart_count > 0 ? `
+                  <span class="text-yellow-400">↻ ${container.restart_count}</span>
+                ` : ''}
+              </div>
+            </div>
+            <a href="https://vanilla-${container.name}.grok.foo" target="_blank"
+               class="text-xs text-blue-400 hover:text-blue-300">
+              vanilla →
+            </a>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+            <div>
+              <div class="text-xs text-gray-400 mb-1">Memory (usage / limit)</div>
+              <div class="font-mono ${memColor}">
+                ${container.memory_usage_mb.toFixed(0)}MB / ${container.memory_limit_mb.toFixed(0)}MB
+              </div>
+              <div class="text-xs font-mono ${memColor}">${container.memory_percent.toFixed(1)}%</div>
+              ${container.memory_reservation_mb > 0 ? `
+                <div class="text-xs text-gray-500 mt-1">Reserved: ${container.memory_reservation_mb}MB</div>
+              ` : ''}
+            </div>
+            <div>
+              <div class="text-xs text-gray-400 mb-1">CPU</div>
+              <div class="font-mono ${cpuColor}">${container.cpu_percent.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-400 mb-1">Disk</div>
+              <div class="font-mono text-gray-300">${container.disk_usage_mb}MB</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-400 mb-1">Processes</div>
+              <div class="font-mono text-gray-300">${container.pm2_processes.length}</div>
+            </div>
+          </div>
+
+          ${pm2Html}
+          ${memoryPressureHtml}
+        </div>
+      `;
+    }
+
+    async function fetchMetrics() {
+      try {
+        const response = await fetch(METRICS_URL + '?t=' + Date.now());
+        if (!response.ok) throw new Error('Failed to fetch metrics');
+
+        const data = await response.json();
+
+        // Update timestamp
+        const date = new Date(data.timestamp);
+        document.getElementById('last-update').textContent =
+          'Last update: ' + date.toLocaleTimeString();
+
+        // Update host metrics
+        const memUsedKb = data.host.memory_total_kb - data.host.memory_available_kb;
+        const memPercent = (memUsedKb / data.host.memory_total_kb * 100).toFixed(1);
+        document.getElementById('host-memory').textContent =
+          `${formatBytes(memUsedKb)} / ${formatBytes(data.host.memory_total_kb)}`;
+        document.getElementById('host-memory').classList.toggle('text-red-400', memPercent > 90);
+        document.getElementById('host-memory').classList.toggle('text-yellow-400', memPercent > 75 && memPercent <= 90);
+
+        const swapUsedKb = data.host.swap_total_kb - data.host.swap_free_kb;
+        const swapPercent = data.host.swap_total_kb > 0
+          ? (swapUsedKb / data.host.swap_total_kb * 100).toFixed(1)
+          : 0;
+        document.getElementById('host-swap').textContent =
+          data.host.swap_total_kb > 0
+            ? `${formatBytes(swapUsedKb)} / ${formatBytes(data.host.swap_total_kb)}`
+            : 'None';
+        document.getElementById('host-swap').classList.toggle('text-yellow-400', swapPercent > 50);
+
+        const commitPercent = (data.host.committed_kb / data.host.commit_limit_kb * 100).toFixed(1);
+        document.getElementById('host-commit').textContent =
+          `${formatBytes(data.host.committed_kb)} / ${formatBytes(data.host.commit_limit_kb)}`;
+        document.getElementById('host-commit').classList.toggle('text-red-400', commitPercent > 90);
+        document.getElementById('host-commit').classList.toggle('text-yellow-400', commitPercent > 75 && commitPercent <= 90);
+
+        document.getElementById('host-disk').textContent =
+          `${data.host.disk_usage_percent}%`;
+        document.getElementById('host-disk').classList.toggle('text-red-400', data.host.disk_usage_percent > 90);
+        document.getElementById('host-disk').classList.toggle('text-yellow-400', data.host.disk_usage_percent > 80 && data.host.disk_usage_percent <= 90);
+
+        document.getElementById('host-containers').textContent =
+          `${data.containers.length}`;
+
+        // Calculate total reserved memory
+        const totalReservedMb = data.containers.reduce((sum, c) => sum + (c.memory_reservation_mb || 0), 0);
+        const hostMemMb = data.host.memory_total_kb / 1024;
+        const reservedPercent = (totalReservedMb / hostMemMb * 100).toFixed(1);
+
+        let riskText = '';
+        let riskColor = 'text-green-400';
+        if (commitPercent > 90) {
+          riskText = `⚠️ HIGH RISK: ${commitPercent}% of commit limit used`;
+          riskColor = 'text-red-400';
+        } else if (commitPercent > 75) {
+          riskText = `⚠ Moderate risk: ${commitPercent}% of commit limit used`;
+          riskColor = 'text-yellow-400';
+        } else {
+          riskText = `✓ Low risk: ${commitPercent}% of commit limit used`;
+          riskColor = 'text-green-400';
+        }
+
+        const riskEl = document.getElementById('host-risk-level');
+        riskEl.textContent = riskText;
+        riskEl.className = riskColor;
+
+        // Update containers
+        const containersEl = document.getElementById('containers');
+        if (data.containers.length === 0) {
+          containersEl.innerHTML = '<div class="text-center text-gray-500 py-8">No containers found</div>';
+        } else {
+          containersEl.innerHTML = data.containers.map(renderContainer).join('');
+        }
+
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        document.getElementById('last-update').textContent =
+          'Error: ' + error.message;
+      }
+    }
+
+    // Initial fetch
+    fetchMetrics();
+
+    // Auto-refresh
+    setInterval(fetchMetrics, REFRESH_INTERVAL);
+  </script>
+</body>
+</html>

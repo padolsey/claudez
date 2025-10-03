@@ -8,23 +8,76 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 
 VERIFY=0
 NAME=""
+SIZE_PROFILE=""
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --verify) VERIFY=1; shift ;;
-    -*) die "Unknown flag: $1" ;;
+    --large) SIZE_PROFILE="large"; shift ;;
+    --help)
+      cat <<'EOF'
+Usage: provision create <name> [--verify] [--large]
+
+Options:
+  --verify  Wait for Traefik routing and verify connectivity
+  --large   Use 5GB memory limit for heavy builds (default: 3GB)
+
+Examples:
+  provision create myapp              # Standard 3GB limit
+  provision create bigapp --large     # 5GB for complex Next.js builds
+EOF
+      exit 0
+      ;;
+    -*) die "Unknown flag: $1 (try --help)" ;;
     *) NAME="$1"; shift ;;
   esac
 done
 
-[ -z "$NAME" ] && die "Usage: provision create <name> [--verify]"
+[ -z "$NAME" ] && die "Usage: provision create <name> [--verify] [--large] (try --help)"
 
 load_env
+
+# Override memory limits for large profile
+if [ "$SIZE_PROFILE" = "large" ]; then
+  MEM_LIMIT="5120m"  # 5GB
+  log "Using --large profile: 5GB memory limit"
+fi
 APP_DIR="${APPS_DIR}/${NAME}"
 CONTAINER_NAME="${NAME}-app"
 
 need docker
+
+# Check if we've hit capacity limits
+EXISTING_CONTAINERS=$(docker ps -a --filter "name=-app$" --format "{{.Names}}" | wc -l)
+MAX_SANDBOXES=12  # Conservative: ~36GB total at 3GB each
+
+if [ "$EXISTING_CONTAINERS" -ge "$MAX_SANDBOXES" ]; then
+  die "Maximum sandboxes ($MAX_SANDBOXES) reached. Current: $EXISTING_CONTAINERS
+
+  This limit protects host stability. To create new sandboxes:
+  - Stop idle ones: provision stop <name>
+  - Remove unused ones: provision rm <name>
+  - Check status: provision ls"
+fi
+
+# Calculate total memory reservations to ensure we don't overcommit
+TOTAL_RESERVED_MB=0
+for container in $(docker ps -a --filter "name=-app$" --format "{{.Names}}"); do
+  RESERVATION=$(docker inspect -f '{{.HostConfig.MemoryReservation}}' "$container" 2>/dev/null || echo "0")
+  RESERVED_MB=$((RESERVATION / 1024 / 1024))
+  TOTAL_RESERVED_MB=$((TOTAL_RESERVED_MB + RESERVED_MB))
+done
+
+NEW_RESERVATION_MB=1536
+TOTAL_AFTER=$((TOTAL_RESERVED_MB + NEW_RESERVATION_MB))
+MAX_SAFE_RESERVED_MB=24576  # 24GB reserved, leaves 6GB for host + spikes
+
+if [ "$TOTAL_AFTER" -gt "$MAX_SAFE_RESERVED_MB" ]; then
+  log "WARNING: Total reserved memory would be ${TOTAL_AFTER}MB (limit: ${MAX_SAFE_RESERVED_MB}MB)"
+  log "Creating anyway, but monitor 'Commit Limit' on status page closely."
+fi
+
 mkdir -p "$APP_DIR" "$APP_DIR/workspace"
 
 ensure_network "$TRAEFIK_NETWORK"
