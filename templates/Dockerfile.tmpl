@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # global tools
-RUN npm install -g @anthropic-ai/claude-code pm2 http-server
+RUN npm install -g @anthropic-ai/claude-code pm2 http-server && \
+    pm2 install pm2-logrotate && \
+    pm2 set pm2-logrotate:max_size 10M && \
+    pm2 set pm2-logrotate:retain 5 && \
+    pm2 set pm2-logrotate:compress true
 
 # startup script (as root), then drop privileges
 RUN install -d /usr/local/bin && \
@@ -39,6 +43,12 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
 JSON
   chown appuser:appuser "${TARGET_JSON}"
   chmod 600 "${TARGET_JSON}"
+
+  # Write API key to file for better security (not visible in ps/proc)
+  mkdir -p /home/appuser/.config
+  echo "$ANTHROPIC_API_KEY" > /home/appuser/.config/anthropic_key
+  chown appuser:appuser /home/appuser/.config/anthropic_key
+  chmod 600 /home/appuser/.config/anthropic_key
 fi
 
 # Fix workspace ownership for inner Claude (after creating .claude dir)
@@ -67,13 +77,42 @@ fi
 SH
 chmod +x /usr/local/bin/cc
 
+# Disk space monitoring script
+cat >/usr/local/bin/check-disk.sh <<'SH'
+#!/usr/bin/env bash
+USAGE=$(df /workspace | tail -1 | awk '{print $5}' | sed 's/%//')
+if [ "$USAGE" -gt 80 ]; then
+  echo "WARNING: /workspace disk usage at ${USAGE}%"
+  du -sh /workspace/* 2>/dev/null | sort -rh | head -5
+fi
+SH
+chmod +x /usr/local/bin/check-disk.sh
+
+# PM2 auto-save watchdog - saves pm2 state every 5 minutes
+cat >/usr/local/bin/pm2-watchdog.sh <<'SH'
+#!/usr/bin/env bash
+while true; do
+  sleep 300
+  su -m appuser -c "pm2 save" >/dev/null 2>&1 || true
+done
+SH
+chmod +x /usr/local/bin/pm2-watchdog.sh
+
 # Drop to appuser and start services
 # Note: Preserve ANTHROPIC_API_KEY in environment for Claude to use
 export ANTHROPIC_API_KEY
+
+# Start pm2 watchdog in background (as root, switches to appuser internally)
+/usr/local/bin/pm2-watchdog.sh &
+
 exec su -m appuser -c '
   cd /workspace
   pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
   pm2 save >/dev/null 2>&1 || true
+
+  # Run disk check on startup
+  /usr/local/bin/check-disk.sh || true
+
   sleep infinity
 '
 EOS

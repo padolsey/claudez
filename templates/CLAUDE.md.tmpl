@@ -2,6 +2,13 @@
 
 You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 
+## Environment Awareness
+- **You're running inside a Docker container** - Don't try to install Docker, systemd, or other system services
+- **User context:** You run as `appuser` (UID 10001), not root - you cannot `sudo` or install system packages
+- **Tmux session:** You're inside tmux session `claude` - use `Ctrl+B D` to detach (don't exit the shell)
+- **Resource limits:** 1GB RAM, 1 CPU core - be mindful of heavy builds and concurrent processes
+- **Network access:** Full outbound internet access; only ports 3000/8000/9000 are routed via Traefik
+
 ## Routing & Ports
 - **Production:** https://${CLAUDE_NAME}.${DOMAIN_BASE} → container **:3000**
 - **Development:** https://dev-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:8000**
@@ -11,15 +18,38 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - Next.js (App Router, TypeScript, Tailwind) in **/workspace/app**.
 - **/workspace/vanilla** is served by pm2 via http-server on :9000 (process **vanilla**).
 
-## Expectations
-- Use **plain `fetch`** for API calls; avoid SDKs.
+## Persistence & Data
+- **Persistent:** `/workspace` directory survives container restarts - commit important work to git
+- **Ephemeral:** Everything else (`/tmp`, `~/.pm2`, global node_modules) is reset on container restart
+- **No automatic backups** - workspace is persistent but not backed up; use git commits
+- **PM2 state:** After adding/removing pm2 processes, run `pm2 save` so they survive restarts
+- **Logs:** PM2 logs are in `~/.pm2/logs/` - check them if services fail
+
+## Process Management (CRITICAL)
+- **CRITICAL: Always use pm2 to manage long-running processes.** Never run `npm start`, `npm run dev`, or similar commands directly in the foreground, as this will kill the container's main process and kick you out.
 - Use **pm2** to manage processes. Prefer explicit cwd and ports:
   - Dev: `pm2 start "npm run dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
   - Prod: `pm2 start "npm run start" --name nextjs-prod --cwd /workspace/app` (app listens on :3000)
-- If you need native deps, ask for build tools; otherwise keep it lean.
-- Do not log secrets.
+  - To restart: `pm2 restart <name>` or `pm2 delete <name>` then start again
+  - To view logs: `pm2 logs <name>`
+  - To list: `pm2 list`
+  - **After changes:** `pm2 save` to persist process list across restarts
+- **CRITICAL:** Always use `--hostname 0.0.0.0` for dev servers or they won't be accessible via Traefik. Dev servers default to localhost-only binding.
+
+## Security & Best Practices
+- **API key security:** Your Anthropic API key is in `$ANTHROPIC_API_KEY` - never echo/log it, never commit to git
+- **Real costs:** This is a real API key with real billing - be mindful of API call volume
+- **Secrets:** Don't commit `.env` files, API keys, or credentials to git - they're in `.gitignore`
+- **Dependencies:** If you need system packages (build-essential, python, etc.), ask the user to rebuild the container
+- Use **plain `fetch`** for API calls; avoid heavy SDKs to keep the container lean
+
+## Resource Management
+- **Disk space:** node_modules and build artifacts can be large - run `npm prune` or `rm -rf .next` if needed
+- **Memory:** With 1GB RAM, avoid running too many concurrent processes
+- **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
 
 ## Goals
 - Rapidly scaffold/iterate secure AI webapps.
 - Prioritize clarity, robustness, and streaming (SSE) where relevant.
 - Take initiative; explain major steps before destructive changes.
+- Ask for help if you need system packages or hit resource limits.

@@ -9,6 +9,8 @@ This provisions Docker-based sandboxes where each project gets:
 - **Automatic HTTPS** via Traefik + Let's Encrypt (prod, dev, and vanilla routes)
 - **Persistent sessions** that survive SSH/network disconnects (tmux-backed)
 - **Zero Claude onboarding** on every restart (pre-configured with your API key)
+- **Resource protection** (1GB RAM, 1 CPU, log rotation, disk monitoring)
+- **Security hardening** (dropped capabilities, no-new-privileges, secrets protection)
 
 Each sandbox is isolated, reproducible, and accessible at `https://<project>.<your-domain>`.
 
@@ -198,6 +200,24 @@ If your client drops (Termius/mosh), just re-run the same command to reattach.
 - If your SSH/mosh/Termius session drops, the tmux session **keeps running**.
 - Re-enter the container and run `cc` again to reattach instantly.
 
+## Resource Limits & Security
+
+Each sandbox container has:
+- **1GB RAM limit** - prevents memory exhaustion
+- **1 CPU core** - prevents CPU hogging
+- **PM2 log rotation** - max 10MB per log, 5 files retained, compressed
+- **Disk monitoring** - warns at 80% usage on startup
+- **Auto-save watchdog** - `pm2 save` runs every 5 minutes
+- **Health checks** - vanilla server monitored every 30s
+- **Dropped capabilities** - container runs with minimal privileges
+- **Secrets protection** - comprehensive `.gitignore` prevents accidental commits
+
+Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explaining:
+- Environment constraints and best practices
+- How to use pm2 correctly (never run `npm start` directly!)
+- Persistence boundaries (/workspace vs ephemeral)
+- Security reminders (don't log API keys, be mindful of costs)
+
 ## Skipping Claude onboarding **every time**
 
 On boot, the container:
@@ -226,6 +246,7 @@ If you want sticky preferences across rebuilds, keep that file in your bind moun
 
 ### Development
 - `provision enter <name>` — Open shell and attach to Claude session (tmux)
+- `provision shell <name>` — Open normal shell without starting Claude
 - `provision exec <name> <cmd>` — Run a command in the container as appuser
 - `provision logs <name> [options]` — View container logs (supports `-f`, `--tail`, etc.)
 - `provision status <name>` — Health checks (vanilla server + Traefik routing)
@@ -253,16 +274,49 @@ provision rm myapp       # Delete entirely
 - `templates/` — all generated files live here; we render with `envsubst`
 - `conf/defaults.env` — repo defaults; override in `~/.provisionrc`
 
+## Troubleshooting
+
+### Container exited unexpectedly
+Inner Claude probably ran `npm start` or similar in the foreground, killing the main process. The container auto-restarts. Use `provision enter <name>` to reattach and check `/workspace/CLAUDE.md` for guidance.
+
+### Traefik route not working
+- Check DNS: `dig vanilla-myapp.yourdomain.com` should point to your server
+- Verify Traefik is running: `docker ps | grep traefik`
+- Check routing: `provision status <name>` tests HTTPS connectivity
+- View Traefik logs: `docker logs traefik`
+
+### Disk space warnings
+Inner Claude installed too many dependencies or build artifacts are large:
+```bash
+provision exec myapp "du -sh /workspace/* | sort -rh | head -10"
+provision exec myapp "npm prune"
+provision exec myapp "rm -rf /workspace/app/.next"
+```
+
+### Memory/CPU issues
+Container is limited to 1GB RAM and 1 CPU. Check resource usage:
+```bash
+docker stats xxx-app
+```
+
+### PM2 processes not persisting
+Inner Claude forgot to run `pm2 save`. The watchdog runs it every 5 minutes, but manual save is safer:
+```bash
+provision exec myapp "pm2 save"
+```
+
 ## Ops notes (strong opinions)
 
 - **Use mosh** from iPad (Termius supports it) **and** tmux in-container.
   Mosh handles flaky networks; tmux guarantees Claude survives client death.
 - **Secrets**: Prefer Docker secrets or a root-only `:ro` bind mount. Never commit keys.
 - **Health checks**: `provision status <name>` validates vanilla + Traefik routing.
+- **Shell access**: Use `provision shell <name>` for normal bash without Claude, or `provision enter <name>` to attach Claude in tmux.
 - **Debug**:
   - `provision logs <name> -f` to follow container logs (pm2 is quiet for vanilla, by design)
   - `provision enter <name>` to open a shell and run `cc` to attach Claude
   - Inside tmux: `Ctrl-b d` to detach without killing Claude
+  - Check disk usage: `provision exec <name> "/usr/local/bin/check-disk.sh"`
 
 ## Common commands inside the sandbox
 

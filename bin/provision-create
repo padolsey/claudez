@@ -84,6 +84,75 @@ docker exec -u appuser "$CONTAINER_NAME" bash -lc '
   fi
 '
 
+# Create .gitignore for secrets protection
+log "Creating .gitignore in workspace…"
+cat > "${APP_DIR}/workspace/.gitignore" <<'EOF'
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+
+# API Keys & Credentials
+**/ANTHROPIC_KEY*
+**/anthropic_key*
+**/*api_key*
+**/*secret*
+credentials.json
+auth.json
+
+# PM2
+.pm2/
+pm2.log
+
+# Claude
+.claude/
+.claude.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+*.pid
+*.seed
+*.tmp
+EOF
+chown 10001:10001 "${APP_DIR}/workspace/.gitignore" || true
+
 # Health checks
 health_vanilla_inside "$CONTAINER_NAME"
 

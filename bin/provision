@@ -8,6 +8,7 @@ SUB="${1:-}"; shift || true
 case "$SUB" in
   create)  exec "$SELF_DIR/provision-create" "$@" ;;
   enter)   exec "$SELF_DIR/provision-enter" "$@" ;;
+  shell)   exec "$SELF_DIR/provision-shell" "$@" ;;
   reset)   exec "$SELF_DIR/provision-reset" "$@" ;;
   status)  exec "$SELF_DIR/provision-status" "$@" ;;
   ls)      exec "$SELF_DIR/provision-ls" "$@" ;;
@@ -22,6 +23,7 @@ case "$SUB" in
 Usage:
   provision create <name> [--verify] # build + up + bootstrap (--verify checks Traefik routing)
   provision enter  <name>         # open shell & start/attach Claude (tmux)
+  provision shell  <name>         # open normal shell without starting Claude
   provision reset  <name>         # remove container/image/app dir then recreate
   provision status <name>         # health checks (vanilla/Traefik)
   provision ls                    # list all provisioned apps with status

@@ -44,6 +44,12 @@ services:
     mem_limit: ${MEM_LIMIT}
     cpus: "${CPU_LIMIT}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   ${TRAEFIK_NETWORK}:

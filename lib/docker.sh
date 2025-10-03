@@ -36,9 +36,9 @@ health_vanilla_inside() {
 
 health_traefik_route() {
   local host="$1"; local tries="${2:-20}"
-  log "Sanity: Traefik route for ${host} via localhost:80…"
+  log "Sanity: Traefik route for ${host} via HTTPS…"
   for i in $(seq 1 "$tries"); do
-    if curl -fs -H "Host: ${host}" http://127.0.0.1/ >/dev/null 2>&1; then
+    if curl -fsSk --resolve "${host}:443:127.0.0.1" "https://${host}/" >/dev/null 2>&1; then
       log "OK: Traefik route is live."; return 0
     fi
     sleep 2
