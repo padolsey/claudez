@@ -2,11 +2,26 @@
 
 You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 
+## Quick Start
+
+**A fresh Next.js 15 project is already set up for you in `/workspace/app/`** - no need to create one!
+
+To get started:
+```bash
+cd /workspace/app
+ls -la                    # See the project structure
+cat package.json          # Check what's installed
+pm2 start "pnpm dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app
+pm2 logs nextjs-dev       # Watch the dev server start
+```
+
+Then visit: `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}` to see the app running.
+
 ## Environment Awareness
 - **You're running inside a Docker container** - Don't try to install Docker, systemd, or other system services
 - **User context:** You run as `appuser` (UID 10001), not root - you cannot `sudo` or install system packages
 - **Tmux session:** You're inside tmux session `claude` - use `Ctrl+B D` to detach (don't exit the shell)
-- **Resource limits:** 2GB RAM, 1 CPU core - be mindful of heavy builds and concurrent processes
+- **Resource limits:** 3GB RAM (5GB for large sandboxes), 1 CPU core - be mindful of heavy builds and concurrent processes
 - **Network access:** Full outbound internet access; only ports 3000/8000/9000 are routed via Traefik
 
 ## Routing & Ports
@@ -15,8 +30,24 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - **Vanilla static:** https://vanilla-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:9000**
 
 ## Project Layout
-- Next.js (App Router, TypeScript, Tailwind) in **/workspace/app**.
-- **/workspace/vanilla** is served by pm2 via http-server on :9000 (process **vanilla**).
+
+**You have a fresh Next.js 15 project already scaffolded and ready to use:**
+
+- **`/workspace/app/`** - Your main Next.js project (App Router, TypeScript, Tailwind CSS v4)
+  - Already initialized with `pnpm create next-app`
+  - Dependencies installed and ready to go
+  - **Start here** - modify, extend, or completely rebuild this project as needed
+  - Structure: `app/page.tsx`, `app/layout.tsx`, `package.json`, etc.
+
+- **`/workspace/vanilla/`** - Static demo site (already running on :9000 via pm2)
+  - Process name: **vanilla** (check with `pm2 list`)
+  - Used for quick routing verification
+
+- **`/workspace/CLAUDE.md`** - This context file (read it anytime for reference)
+
+- **`/workspace/.claude-logs/`** - Your session logs (automatic, survives crashes)
+
+- **`/workspace/.debug/`** - Memory pressure logs (created if low memory occurs)
 
 ## Tech Stack & Conventions
 - **Package manager:** Always use **pnpm** (not npm/yarn) - faster, disk-efficient, strict
@@ -56,9 +87,9 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 
 ## Resource Management
 - **Disk space:** node_modules and build artifacts can be large - run `pnpm prune` or `rm -rf .next` if needed
-- **Memory:** With 2GB RAM, you can run dev + occasional builds, but avoid too many concurrent heavy processes
+- **Memory:** With 3GB RAM (5GB for large sandboxes), you can run dev + occasional builds, but avoid too many concurrent heavy processes
 - **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
-- **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages
+- **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages to the Next.js project
 
 ## Debugging & Recovery
 - **Session logs:** Your terminal I/O is automatically saved to `/workspace/.claude-logs/` (via tmux pipe-pane)
@@ -66,8 +97,19 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - **Container logs:** Docker logs capture stdout/stderr, accessible via `docker logs` or `provision logs`
 - **Purpose:** If the session crashes or OOM kills, these logs help diagnose and resume work
 
-## Goals
-- Rapidly scaffold/iterate secure AI webapps.
-- Prioritize clarity, robustness, and streaming (SSE) where relevant.
-- Take initiative; explain major steps before destructive changes.
-- Ask for help if you need system packages or hit resource limits.
+## Your Mission
+
+You're here to help build, modify, and iterate on web applications. Your workspace has a **fresh Next.js 15 project already set up** in `/workspace/app/`.
+
+**Typical workflow:**
+1. Understand what the user wants to build/change
+2. Modify the existing Next.js project in `/workspace/app/`
+3. Start the dev server with pm2: `pm2 start "pnpm dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
+4. User can view changes at `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}`
+5. When ready for production: build and start on :3000
+
+**Guidelines:**
+- Take initiative; explain major steps before destructive changes
+- Prioritize clarity, robustness, and streaming (SSE) where relevant
+- If you need system packages or hit resource limits, ask the user
+- The Next.js app is already there - **don't create a new project**, just modify what exists
