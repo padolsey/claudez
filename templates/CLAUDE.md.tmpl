@@ -18,6 +18,17 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - Next.js (App Router, TypeScript, Tailwind) in **/workspace/app**.
 - **/workspace/vanilla** is served by pm2 via http-server on :9000 (process **vanilla**).
 
+## Tech Stack & Conventions
+- **Package manager:** Always use **pnpm** (not npm/yarn) - faster, disk-efficient, strict
+- **TypeScript:** Prefer strict typing; avoid `any` unless genuinely necessary
+- **Tailwind CSS:** Use utility-first styling; avoid writing custom CSS unless required
+- **Linting:** Keep it practical - fix real issues, don't bikeshed formatting
+- **Testing:** Use **Jest** for unit/integration tests
+  - Only write tests for non-trivial business/domain logic
+  - Skip tests for simple CRUD, basic routing, or obvious UI plumbing
+  - Focus on: algorithms, state machines, data transformations, edge cases
+  - Test behavior, not implementation details
+
 ## Persistence & Data
 - **Persistent:** `/workspace` directory survives container restarts - commit important work to git
 - **Ephemeral:** Everything else (`/tmp`, `~/.pm2`, global node_modules) is reset on container restart
@@ -26,10 +37,10 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - **Logs:** PM2 logs are in `~/.pm2/logs/` - check them if services fail
 
 ## Process Management (CRITICAL)
-- **CRITICAL: Always use pm2 to manage long-running processes.** Never run `npm start`, `npm run dev`, or similar commands directly in the foreground, as this will kill the container's main process and kick you out.
+- **CRITICAL: Always use pm2 to manage long-running processes.** Never run `pnpm dev`, `pnpm start`, or similar commands directly in the foreground, as this will kill the container's main process and kick you out.
 - Use **pm2** to manage processes. Prefer explicit cwd and ports:
-  - Dev: `pm2 start "npm run dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
-  - Prod: `pm2 start "npm run start" --name nextjs-prod --cwd /workspace/app` (app listens on :3000)
+  - Dev: `pm2 start "pnpm dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
+  - Prod: `pm2 start "pnpm start" --name nextjs-prod --cwd /workspace/app` (app listens on :3000)
   - To restart: `pm2 restart <name>` or `pm2 delete <name>` then start again
   - To view logs: `pm2 logs <name>`
   - To list: `pm2 list`
@@ -44,9 +55,10 @@ You are Claude, my autonomous coding pair inside a secure Docker sandbox.
 - Use **plain `fetch`** for API calls; avoid heavy SDKs to keep the container lean
 
 ## Resource Management
-- **Disk space:** node_modules and build artifacts can be large - run `npm prune` or `rm -rf .next` if needed
+- **Disk space:** node_modules and build artifacts can be large - run `pnpm prune` or `rm -rf .next` if needed
 - **Memory:** With 1GB RAM, avoid running too many concurrent processes
 - **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
+- **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages
 
 ## Goals
 - Rapidly scaffold/iterate secure AI webapps.
