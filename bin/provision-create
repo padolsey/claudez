@@ -95,7 +95,6 @@ fi
 cat > "${APP_DIR}/.env" <<EOF
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 CLAUDE_HOME=/home/appuser
-NODE_ENV=development
 PORT=3000
 HOST=0.0.0.0
 CHOKIDAR_USEPOLLING=1
@@ -127,15 +126,15 @@ log "Building and starting '${NAME}'…"
 
 wait_running "$CONTAINER_NAME"
 
-# Bootstrap Next.js (first run only)
-log "Bootstrapping Next.js into /workspace/app (first run only)…"
-docker exec -u appuser "$CONTAINER_NAME" bash -lc '
-  mkdir -p /workspace/app
-  if [ ! -f /workspace/app/package.json ]; then
-    cd /workspace/app
-    pnpm create next-app . --ts --tailwind --eslint=false --app
+# Next.js is initialized automatically by container startup script
+log "Waiting for Next.js initialization to complete…"
+for i in $(seq 1 30); do
+  if docker exec -u appuser "$CONTAINER_NAME" bash -lc '[ -f /workspace/app/package.json ]' 2>/dev/null; then
+    log "Next.js project initialized."
+    break
   fi
-'
+  sleep 1
+done
 
 # Create .gitignore for secrets protection
 log "Creating .gitignore in workspace…"
