@@ -9,7 +9,7 @@ This provisions Docker-based sandboxes where each project gets:
 - **Automatic HTTPS** via Traefik + Let's Encrypt (prod, dev, and vanilla routes)
 - **Persistent sessions** that survive SSH/network disconnects (tmux-backed)
 - **Zero Claude onboarding** on every restart (pre-configured with your API key)
-- **Resource protection** (1GB RAM, 1 CPU, log rotation, disk monitoring)
+- **Resource protection** (3GB/5GB RAM, 1 CPU, log rotation, disk monitoring)
 - **Security hardening** (dropped capabilities, no-new-privileges, secrets protection)
 
 Each sandbox is isolated, reproducible, and accessible at `https://<project>.<your-domain>`.
@@ -188,13 +188,18 @@ Verify DNS propagation: `dig vanilla-myapp.yourdomain.com` should return your se
 ## How it works
 
 1. You run `provision create myapp`
-2. The tool generates a Docker container with Node.js, Claude Code, tmux, and pm2
+2. The tool generates a Docker container with:
+   - Node.js 20, Claude Code, tmux, pm2, pnpm
+   - **Pre-scaffolded Next.js 15 project** (App Router, TypeScript, Tailwind CSS v4)
+   - All dependencies cached in Docker image for fast startup
 3. Traefik detects the container labels and creates routes:
    - `https://myapp.example.com` → port 3000 (prod)
    - `https://dev-myapp.example.com` → port 8000 (dev)
    - `https://vanilla-myapp.example.com` → port 9000 (auto-running vanilla app)
 4. Let's Encrypt automatically provisions SSL certificates
-5. You enter the sandbox and run `cc` to start Claude in a persistent tmux session
+5. Container startup automatically initializes the Next.js project from cached template (~6 seconds)
+6. You enter the sandbox and run `cc` to start Claude in a persistent tmux session
+7. Inner Claude finds a ready-to-use Next.js project in `/workspace/app/`
 
 ## Quick start
 
@@ -261,6 +266,7 @@ Each sandbox container has:
 - **Status page** - real-time monitoring at `https://status.<your-domain>`
 
 Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explaining:
+- **Pre-scaffolded Next.js 15 project** ready to use in `/workspace/app/`
 - Environment constraints and best practices
 - How to use pm2 correctly (never run `npm start` directly!)
 - Persistence boundaries (/workspace vs ephemeral)
