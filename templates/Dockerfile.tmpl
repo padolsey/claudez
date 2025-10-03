@@ -14,6 +14,15 @@ RUN npm install -g @anthropic-ai/claude-code pm2 http-server pnpm && \
     pm2 set pm2-logrotate:retain 5 && \
     pm2 set pm2-logrotate:compress true
 
+# Pre-scaffold Next.js template (cached in image layer)
+# Set global pnpm store so packages are cached in the image
+RUN mkdir -p /opt/pnpm-store && \
+    pnpm config set store-dir /opt/pnpm-store && \
+    mkdir -p /opt/nextjs-template && \
+    cd /opt/nextjs-template && \
+    pnpm create next-app . --ts --tailwind --no-linter --app --use-pnpm --yes && \
+    chmod -R 755 /opt/nextjs-template /opt/pnpm-store
+
 # startup script (as root), then drop privileges
 RUN install -d /usr/local/bin && \
     cat >/usr/local/bin/startup.sh <<'EOS'
@@ -137,6 +146,19 @@ export ANTHROPIC_API_KEY
 
 exec su -m appuser -c '
   cd /workspace
+
+  # Copy Next.js template if not already initialized
+  if [ ! -f /workspace/app/package.json ]; then
+    echo "Initializing Next.js project from template..."
+    mkdir -p /workspace/app
+    # Copy template files (exclude node_modules - will install fresh)
+    cd /opt/nextjs-template
+    find . -maxdepth 1 ! -name "." ! -name ".." ! -name "node_modules" -exec cp -r {} /workspace/app/ \;
+    cd /workspace/app
+    # Install dependencies using global pnpm store (cached in image)
+    CI=true PNPM_HOME=/opt/pnpm-store pnpm install --store-dir /opt/pnpm-store --prefer-offline
+  fi
+
   pm2 start "http-server /workspace/vanilla -p 9000 --silent" --name vanilla >/dev/null 2>&1 || true
   pm2 save >/dev/null 2>&1 || true
 
