@@ -9,6 +9,16 @@ CONTAINER_NAME="${NAME}-app"
 
 need docker
 
+# Check if container exists
+if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  die "Container '${CONTAINER_NAME}' not found. Create it first with: provision create ${NAME}"
+fi
+
+# Check if container is running
+if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  die "Container '${CONTAINER_NAME}' exists but is not running. Start it with: provision start ${NAME}"
+fi
+
 # Prefer launching/attaching Claude via the tmux-backed cc wrapper.
 # IMPORTANT: Run as appuser so Claude finds /home/appuser/.claude.json
 exec docker exec -it -u appuser "$CONTAINER_NAME" bash -lc 'command -v cc >/dev/null && cc || claude || bash'
