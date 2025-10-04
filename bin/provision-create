@@ -113,6 +113,10 @@ mv -f "${APP_DIR}/workspace/vanilla.index.html" "${APP_DIR}/workspace/vanilla/in
 mkdir -p "${APP_DIR}/workspace"
 CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/CLAUDE.md.tmpl" "${APP_DIR}/workspace/CLAUDE.md" >/dev/null
 
+# Claude permissions (allow everything for inner Claude)
+mkdir -p "${APP_DIR}/workspace/.claude"
+cp "$ROOT_DIR/templates/settings.local.json.tmpl" "${APP_DIR}/workspace/.claude/settings.local.json"
+
 # Dockerfile & compose
 NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
 NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" MEM_RESERVATION="$MEM_RESERVATION" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
