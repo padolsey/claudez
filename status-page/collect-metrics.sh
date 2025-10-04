@@ -2,6 +2,14 @@
 # Collects metrics from all provision containers and outputs JSON
 set -euo pipefail
 
+# Check required dependencies
+for cmd in docker jq awk df; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "[ERROR] Missing required command: $cmd" >&2
+    exit 1
+  fi
+done
+
 OUTPUT_FILE="${1:-/opt/status-page/metrics.json}"
 TEMP_FILE="${OUTPUT_FILE}.tmp"
 
