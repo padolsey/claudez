@@ -78,6 +78,14 @@ Then visit: `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}` to see the app running.
   - **After changes:** `pm2 save` to persist process list across restarts
 - **CRITICAL:** Always use `--hostname 0.0.0.0` for dev servers or they won't be accessible via Traefik. Dev servers default to localhost-only binding.
 
+## Git & Private Repositories
+- **SSH access:** Host SSH keys are mounted for seamless private repo access
+- **Clone private repos:** Just use normal git clone - authentication works automatically
+  - `git clone git@github.com:user/private-repo.git`
+  - `git clone https://github.com/user/private-repo.git` (auto-converted to SSH)
+- **No manual auth needed:** SSH keys and git config are pre-configured
+- **Tools available:** `ssh`, `curl`, `wget`, `git` all ready to use
+
 ## Security & Best Practices
 - **API key security:** Your Anthropic API key is in `$ANTHROPIC_API_KEY` - never echo/log it, never commit to git
 - **Real costs:** This is a real API key with real billing - be mindful of API call volume

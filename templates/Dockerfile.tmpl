@@ -4,7 +4,7 @@ FROM node:${NODE_VERSION}-slim
 
 # base deps (+ tmux so Claude sessions survive disconnects)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      tini wget ca-certificates git tmux \
+      tini wget curl ca-certificates git tmux openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # global tools
@@ -62,6 +62,21 @@ fi
 
 # Fix workspace ownership for inner Claude (after creating .claude dir)
 chown -R appuser:appuser /workspace 2>/dev/null || true
+
+# Copy SSH keys from host mount to appuser's .ssh directory
+# Host SSH keys are mounted at /tmp/host-ssh (read-only)
+if [ -d /tmp/host-ssh ]; then
+  mkdir -p /home/appuser/.ssh
+  cp -r /tmp/host-ssh/* /home/appuser/.ssh/ 2>/dev/null || true
+  chown -R appuser:appuser /home/appuser/.ssh
+  chmod 700 /home/appuser/.ssh
+  chmod 600 /home/appuser/.ssh/id_* /home/appuser/.ssh/known_hosts* 2>/dev/null || true
+  chmod 644 /home/appuser/.ssh/*.pub 2>/dev/null || true
+fi
+
+# Configure git for seamless SSH access to private repos
+su -m appuser -c 'git config --global url."git@github.com:".insteadOf "https://github.com/"'
+su -m appuser -c 'git config --global core.sshCommand "ssh -o StrictHostKeyChecking=accept-new"'
 
 # cc wrapper — runs Claude inside tmux (auto-attach), from /workspace
 cat >/usr/local/bin/cc <<'SH'

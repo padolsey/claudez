@@ -11,6 +11,7 @@ services:
     working_dir: /workspace
     volumes:
       - ./workspace:/workspace:rw
+      - /root/.ssh:/tmp/host-ssh:ro
     networks:
       - ${TRAEFIK_NETWORK}
     labels:

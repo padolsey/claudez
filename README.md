@@ -14,6 +14,7 @@ Each sandbox gets:
 - Security sandboxing (dropped capabilities, resource limits—reduces risk of AI doing something destructive to your server)
 - Persistent tmux sessions (survives SSH disconnects)
 - Pre-scaffolded Next.js project ready to modify
+- Git access to private repos (your SSH keys work transparently)
 
 Think Heroku-style deployment, but local and designed for rapid prototyping with Claude as your hands-off junior dev. Sandboxes keep experimentation safe and iteration fast. No code editing required unless you want to.
 
@@ -195,6 +196,7 @@ Verify DNS propagation: `dig vanilla-myapp.yourdomain.com` should return your se
    - Node.js 20, Claude Code, tmux, pm2, pnpm
    - **Pre-scaffolded Next.js 15 project** (App Router, TypeScript, Tailwind CSS v4)
    - All dependencies cached in Docker image for fast startup
+   - SSH access to private repos (host keys mounted read-only)
 3. Traefik detects the container labels and creates routes:
    - `https://myapp.example.com` → port 3000 (prod)
    - `https://dev-myapp.example.com` → port 8000 (dev)
@@ -274,6 +276,7 @@ Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explainin
 - How to use pm2 correctly (never run `npm start` directly!)
 - Persistence boundaries (/workspace vs ephemeral)
 - Security reminders (don't log API keys, be mindful of costs)
+- Git access to private repos (SSH keys and tools pre-configured)
 
 ## Skipping Claude onboarding **every time**
 
