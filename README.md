@@ -2,17 +2,20 @@
 
 A tool for spinning up isolated, persistent **Claude Code** development environments with automatic HTTPS routing.
 
-## What is this?
+## Why this exists
 
-This provisions Docker-based sandboxes where each project gets:
-- Its own **Claude Code** environment with dedicated workspace
-- **Automatic HTTPS** via Traefik + Let's Encrypt (prod, dev, and vanilla routes)
-- **Persistent sessions** that survive SSH/network disconnects (tmux-backed)
-- **Zero Claude onboarding** on every restart (pre-configured with your API key)
-- **Resource protection** (3GB/5GB RAM, 1 CPU, log rotation, disk monitoring)
-- **Security hardening** (dropped capabilities, no-new-privileges, secrets protection)
+I wanted to ship small tools and apps from my iPad—no local IDE, no fussing with Netlify/GitHub integrations, no switching to my laptop. Just SSH in, tell Claude what to build, and have it live at `https://myapp.yourdomain.com` immediately.
 
-Each sandbox is isolated, reproducible, and accessible at `https://<project>.<your-domain>`.
+This is a personal deployment system optimized for that workflow: provision a sandbox, let Claude build in it autonomously, iterate rapidly, and share the URL. You focus on architecture and product decisions; Claude handles implementation.
+
+Each sandbox gets:
+- Auto-configured HTTPS via Traefik + Let's Encrypt
+- Isolated resources (won't crash each other or the host)
+- Security sandboxing (dropped capabilities, resource limits—reduces risk of AI doing something destructive to your server)
+- Persistent tmux sessions (survives SSH disconnects)
+- Pre-scaffolded Next.js project ready to modify
+
+Think Heroku-style deployment, but local and designed for rapid prototyping with Claude as your hands-off junior dev. Sandboxes keep experimentation safe and iteration fast. No code editing required unless you want to.
 
 ## Quick Reference
 
