@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+OLD_NAME=""
+NEW_NAME=""
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -*) die "Unknown flag: $1" ;;
+    *)
+      if [ -z "$OLD_NAME" ]; then
+        OLD_NAME="$1"
+      elif [ -z "$NEW_NAME" ]; then
+        NEW_NAME="$1"
+      else
+        die "Too many arguments"
+      fi
+      shift
+      ;;
+  esac
+done
+
+[ -z "$OLD_NAME" ] && die "Usage: provision rename <old-name> <new-name>"
+[ -z "$NEW_NAME" ] && die "Usage: provision rename <old-name> <new-name>"
+
+load_env
+need docker
+need envsubst
+
+OLD_CONTAINER_NAME="${OLD_NAME}-app"
+NEW_CONTAINER_NAME="${NEW_NAME}-app"
+OLD_APP_DIR="${APPS_DIR}/${OLD_NAME}"
+NEW_APP_DIR="${APPS_DIR}/${NEW_NAME}"
+
+# Validate old sandbox exists
+if [ ! -d "$OLD_APP_DIR" ]; then
+  die "Sandbox '${OLD_NAME}' not found at ${OLD_APP_DIR}"
+fi
+
+# Validate new name doesn't exist
+if [ -d "$NEW_APP_DIR" ]; then
+  die "Sandbox '${NEW_NAME}' already exists at ${NEW_APP_DIR}"
+fi
+
+# Check if new container name is available
+if docker ps -a --format '{{.Names}}' | grep -qx "$NEW_CONTAINER_NAME"; then
+  die "Container '${NEW_CONTAINER_NAME}' already exists"
+fi
+
+log "Renaming sandbox '${OLD_NAME}' to '${NEW_NAME}'..."
+
+# Step 1: Stop container if running
+WAS_RUNNING=0
+if docker ps --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
+  log "Stopping container '${OLD_CONTAINER_NAME}'..."
+  docker stop "$OLD_CONTAINER_NAME" >/dev/null
+  WAS_RUNNING=1
+fi
+
+# Step 2: Remove container (keep volumes/data)
+if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
+  log "Removing old container..."
+  docker rm "$OLD_CONTAINER_NAME" >/dev/null
+fi
+
+# Step 3: Rename directory
+log "Renaming directory..."
+mv "$OLD_APP_DIR" "$NEW_APP_DIR"
+
+# Step 4: Regenerate docker-compose.yml with new name
+log "Regenerating docker-compose.yml..."
+cd "$NEW_APP_DIR"
+
+# Source render function
+. "$ROOT_DIR/lib/render.sh"
+
+# Set environment variables for template rendering
+export NAME="$NEW_NAME"
+export DOMAIN_BASE="${DOMAIN_BASE}"
+export TRAEFIK_NETWORK="${TRAEFIK_NETWORK}"
+export MEM_RESERVATION="${MEM_RESERVATION:-512m}"
+export MEM_LIMIT="${MEM_LIMIT:-1024m}"
+export CPU_LIMIT="${CPU_LIMIT:-1.0}"
+export NODE_VERSION="${NODE_VERSION:-20}"
+export CLAUDE_NAME="$NEW_NAME"
+
+render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "$NEW_APP_DIR/docker-compose.yml"
+
+# Step 4b: Regenerate CLAUDE.md with new name
+log "Updating CLAUDE.md with new name..."
+CLAUDE_NAME="$NEW_NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/CLAUDE.md.tmpl" "$NEW_APP_DIR/workspace/CLAUDE.md"
+chown 10001:10001 "$NEW_APP_DIR/workspace/CLAUDE.md" 2>/dev/null || true
+
+# Step 5: Recreate container with new name
+log "Creating new container..."
+docker compose up -d >/dev/null 2>&1
+
+# Step 6: Start if it was running before
+if [ "$WAS_RUNNING" -eq 1 ]; then
+  log "Container started with new name."
+else
+  log "Container created but not started (old container was stopped)."
+fi
+
+log "✅ Sandbox renamed from '${OLD_NAME}' to '${NEW_NAME}'"
+log ""
+log "New URLs:"
+log "  • Production:  https://${NEW_NAME}.${DOMAIN_BASE}"
+log "  • Development: https://dev-${NEW_NAME}.${DOMAIN_BASE}"
+log "  • Vanilla:     https://vanilla-${NEW_NAME}.${DOMAIN_BASE}"

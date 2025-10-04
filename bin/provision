@@ -11,6 +11,7 @@ case "$SUB" in
   enter)   exec "$SELF_DIR/provision-enter" "$@" ;;
   shell)   exec "$SELF_DIR/provision-shell" "$@" ;;
   reset)   exec "$SELF_DIR/provision-reset" "$@" ;;
+  rename)  exec "$SELF_DIR/provision-rename" "$@" ;;
   status)  exec "$SELF_DIR/provision-status" "$@" ;;
   ls)      exec "$SELF_DIR/provision-ls" "$@" ;;
   rm)      exec "$SELF_DIR/provision-rm" "$@" ;;
@@ -29,6 +30,7 @@ Usage:
   provision enter  <name>         # open shell & start/attach Claude (tmux)
   provision shell  <name>         # open normal shell without starting Claude
   provision reset  <name>         # remove container/image/app dir then recreate
+  provision rename <old> <new>    # rename a sandbox (stops, renames, recreates)
   provision status <name>         # health checks (vanilla/Traefik)
   provision ls                    # list all provisioned apps with status
   provision rm     <name> [--force] # permanently delete app
