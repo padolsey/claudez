@@ -13,8 +13,8 @@ case "$SUB" in
   reset)   exec "$SELF_DIR/provision-reset" "$@" ;;
   rename)  exec "$SELF_DIR/provision-rename" "$@" ;;
   status)  exec "$SELF_DIR/provision-status" "$@" ;;
-  ls)      exec "$SELF_DIR/provision-ls" "$@" ;;
-  rm)      exec "$SELF_DIR/provision-rm" "$@" ;;
+  ls|list) exec "$SELF_DIR/provision-ls" "$@" ;;
+  rm|remove|delete) exec "$SELF_DIR/provision-rm" "$@" ;;
   logs)    exec "$SELF_DIR/provision-logs" "$@" ;;
   restart) exec "$SELF_DIR/provision-restart" "$@" ;;
   stop)    exec "$SELF_DIR/provision-stop" "$@" ;;
