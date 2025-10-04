@@ -193,8 +193,9 @@ Verify DNS propagation: `dig vanilla-myapp.yourdomain.com` should return your se
 
 1. You run `provision create myapp`
 2. The tool generates a Docker container with:
-   - Node.js 20, Claude Code, tmux, pm2, pnpm
+   - Node.js 20 (full image with build tools), Claude Code, tmux, pm2, pnpm
    - **Pre-scaffolded Next.js 15 project** (App Router, TypeScript, Tailwind CSS v4)
+   - Build tools pre-installed (build-essential, python3, procps) for native module compilation
    - All dependencies cached in Docker image for fast startup
    - SSH access to private repos (host keys mounted read-only)
 3. Traefik detects the container labels and creates routes:

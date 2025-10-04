@@ -90,7 +90,7 @@ Then visit: `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}` to see the app running.
 - **API key security:** Your Anthropic API key is in `$ANTHROPIC_API_KEY` - never echo/log it, never commit to git
 - **Real costs:** This is a real API key with real billing - be mindful of API call volume
 - **Secrets:** Don't commit `.env` files, API keys, or credentials to git - they're in `.gitignore`
-- **Dependencies:** If you need system packages (build-essential, python, etc.), ask the user to rebuild the container
+- **Build tools available:** The container has `build-essential`, `python3`, and `procps` pre-installed for native module compilation (TensorFlow, sharp, etc.)
 - Use **plain `fetch`** for API calls; avoid heavy SDKs to keep the container lean
 
 ## Resource Management
