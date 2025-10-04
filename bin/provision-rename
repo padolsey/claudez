@@ -53,7 +53,24 @@ fi
 
 log "Renaming sandbox '${OLD_NAME}' to '${NEW_NAME}'..."
 
-# Step 1: Stop container if running
+# Step 1: Detect memory limits from old container (before removing it)
+log "Detecting resource limits from old container..."
+if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
+  OLD_MEM_LIMIT=$(docker inspect -f '{{.HostConfig.Memory}}' "$OLD_CONTAINER_NAME" 2>/dev/null || echo "0")
+  OLD_MEM_RESERVATION=$(docker inspect -f '{{.HostConfig.MemoryReservation}}' "$OLD_CONTAINER_NAME" 2>/dev/null || echo "0")
+
+  # Convert bytes to MB with 'm' suffix
+  if [ "$OLD_MEM_LIMIT" != "0" ]; then
+    MEM_LIMIT="$((OLD_MEM_LIMIT / 1024 / 1024))m"
+  fi
+  if [ "$OLD_MEM_RESERVATION" != "0" ]; then
+    MEM_RESERVATION="$((OLD_MEM_RESERVATION / 1024 / 1024))m"
+  fi
+
+  log "Preserving memory limits: ${MEM_LIMIT} limit, ${MEM_RESERVATION} reservation"
+fi
+
+# Step 2: Stop container if running
 WAS_RUNNING=0
 if docker ps --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
   log "Stopping container '${OLD_CONTAINER_NAME}'..."
@@ -61,17 +78,17 @@ if docker ps --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
   WAS_RUNNING=1
 fi
 
-# Step 2: Remove container (keep volumes/data)
+# Step 3: Remove container (keep volumes/data)
 if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_CONTAINER_NAME"; then
   log "Removing old container..."
   docker rm "$OLD_CONTAINER_NAME" >/dev/null
 fi
 
-# Step 3: Rename directory
+# Step 4: Rename directory
 log "Renaming directory..."
 mv "$OLD_APP_DIR" "$NEW_APP_DIR"
 
-# Step 4: Regenerate docker-compose.yml with new name
+# Step 5: Regenerate docker-compose.yml with new name
 log "Regenerating docker-compose.yml..."
 cd "$NEW_APP_DIR"
 
@@ -82,8 +99,8 @@ cd "$NEW_APP_DIR"
 export NAME="$NEW_NAME"
 export DOMAIN_BASE="${DOMAIN_BASE}"
 export TRAEFIK_NETWORK="${TRAEFIK_NETWORK}"
-export MEM_RESERVATION="${MEM_RESERVATION:-512m}"
-export MEM_LIMIT="${MEM_LIMIT:-1024m}"
+export MEM_RESERVATION="${MEM_RESERVATION:-1536m}"
+export MEM_LIMIT="${MEM_LIMIT:-3072m}"
 export CPU_LIMIT="${CPU_LIMIT:-1.0}"
 export NODE_VERSION="${NODE_VERSION:-20}"
 export CLAUDE_NAME="$NEW_NAME"
