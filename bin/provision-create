@@ -40,8 +40,8 @@ load_env
 
 # Override memory limits for large profile
 if [ "$SIZE_PROFILE" = "large" ]; then
-  MEM_LIMIT="5120m"  # 5GB
-  log "Using --large profile: 5GB memory limit"
+  MEM_LIMIT="${MEM_LIMIT_LARGE}"
+  log "Using --large profile: ${MEM_LIMIT} memory limit"
 fi
 APP_DIR="${APPS_DIR}/${NAME}"
 CONTAINER_NAME="${NAME}-app"
@@ -50,7 +50,6 @@ need docker
 
 # Check if we've hit capacity limits
 EXISTING_CONTAINERS=$(docker ps -a --filter "name=-app$" --format "{{.Names}}" | wc -l)
-MAX_SANDBOXES=12  # Conservative: ~36GB total at 3GB each
 
 if [ "$EXISTING_CONTAINERS" -ge "$MAX_SANDBOXES" ]; then
   die "Maximum sandboxes ($MAX_SANDBOXES) reached. Current: $EXISTING_CONTAINERS
@@ -69,9 +68,8 @@ for container in $(docker ps -a --filter "name=-app$" --format "{{.Names}}"); do
   TOTAL_RESERVED_MB=$((TOTAL_RESERVED_MB + RESERVED_MB))
 done
 
-NEW_RESERVATION_MB=1536
+NEW_RESERVATION_MB="${MEM_RESERVATION%m}"  # Strip 'm' suffix
 TOTAL_AFTER=$((TOTAL_RESERVED_MB + NEW_RESERVATION_MB))
-MAX_SAFE_RESERVED_MB=24576  # 24GB reserved, leaves 6GB for host + spikes
 
 if [ "$TOTAL_AFTER" -gt "$MAX_SAFE_RESERVED_MB" ]; then
   log "WARNING: Total reserved memory would be ${TOTAL_AFTER}MB (limit: ${MAX_SAFE_RESERVED_MB}MB)"
