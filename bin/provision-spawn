@@ -20,9 +20,9 @@ done
 
 # Run create (not with exec since we need to continue)
 if [ "$VERIFY" -eq 1 ]; then
-  "$SELF_DIR/provision-create" "$NAME" --verify
+  "$SELF_DIR/provision-create" "$NAME" --verify || die "Failed to create sandbox '${NAME}'"
 else
-  "$SELF_DIR/provision-create" "$NAME"
+  "$SELF_DIR/provision-create" "$NAME" || die "Failed to create sandbox '${NAME}'"
 fi
 
 # Enter if create succeeded
