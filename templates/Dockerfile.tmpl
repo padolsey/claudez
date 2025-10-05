@@ -76,8 +76,8 @@ if [ -d /tmp/host-ssh ]; then
 fi
 
 # Configure git for seamless SSH access to private repos
-su -m appuser -c 'git config --global url."git@github.com:".insteadOf "https://github.com/"'
-su -m appuser -c 'git config --global core.sshCommand "ssh -o StrictHostKeyChecking=accept-new"'
+su appuser -c 'git config --global url."git@github.com:".insteadOf "https://github.com/"'
+su appuser -c 'git config --global core.sshCommand "ssh -o StrictHostKeyChecking=accept-new"'
 
 # cc wrapper — runs Claude inside tmux (auto-attach), from /workspace
 cat >/usr/local/bin/cc <<'SH'
