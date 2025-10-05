@@ -11,7 +11,7 @@ services:
       - edge
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.status.rule=Host(`status.grok.foo`)"
+      - "traefik.http.routers.status.rule=Host(`status.yourdomain.com`)"
       - "traefik.http.routers.status.entrypoints=websecure"
       - "traefik.http.routers.status.tls.certresolver=letsencrypt"
       - "traefik.http.services.status.loadbalancer.server.port=9999"
