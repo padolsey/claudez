@@ -87,7 +87,8 @@ cd claudez
 
 ```bash
 ./setup-traefik.sh
-# Auto-detects local mode and configures HTTP on port 8080
+# Auto-detects local mode and finds available port (tries 8080 first)
+# If port 8080 is in use, automatically selects next available port
 ```
 
 #### 4. Store your Anthropic API key
@@ -400,14 +401,18 @@ claudez rm myapp
 claudez create myapp --large
 ```
 
-### Port 8080 already in use
-```bash
-# Find what's using it
-lsof -ti:8080
+### Port conflicts
 
-# Change port and reconfigure
+**setup-traefik.sh automatically finds an available port** (tries 8080, 8081, 8082... up to 8099).
+
+If you need a specific port:
+```bash
+# Set your preferred port
 echo "DOMAIN_BASE=localhost:9000" > ~/.claudezrc
-./setup-traefik.sh
+./setup-traefik.sh  # Will use 9000 or next available
+
+# Find what's using a port
+lsof -ti:8080
 ```
 
 ## Deployment Modes

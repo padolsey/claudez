@@ -53,9 +53,40 @@ if [ "$MODE" = "local" ]; then
   echo "Setting up LOCAL mode (HTTP, no SSL)..."
   echo ""
 
-  # Extract port from localhost:8080
-  PORT="${DOMAIN_BASE#*:}"
-  PORT="${PORT:-8080}"
+  # Extract requested port from localhost:8080
+  REQUESTED_PORT="${DOMAIN_BASE#*:}"
+  REQUESTED_PORT="${REQUESTED_PORT:-8080}"
+
+  # Auto-detect available port starting from requested port
+  PORT="$REQUESTED_PORT"
+  MAX_ATTEMPTS=20
+  ATTEMPT=0
+
+  while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    # Check if port is available (lsof returns nothing if free)
+    if ! lsof -iTCP:$PORT -sTCP:LISTEN -n -P >/dev/null 2>&1; then
+      # Port is available
+      if [ "$PORT" != "$REQUESTED_PORT" ]; then
+        echo "⚠️  Port $REQUESTED_PORT is in use, using port $PORT instead"
+      fi
+      break
+    fi
+
+    # Port in use, try next one
+    PORT=$((PORT + 1))
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+
+  if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+    echo "ERROR: Could not find an available port in range $REQUESTED_PORT-$((REQUESTED_PORT + MAX_ATTEMPTS - 1))"
+    exit 1
+  fi
+
+  # Update DOMAIN_BASE in ~/.claudezrc if port changed
+  if [ "$PORT" != "$REQUESTED_PORT" ]; then
+    echo "DOMAIN_BASE=localhost:$PORT" > "$HOME/.claudezrc"
+    echo "✓ Updated ~/.claudezrc with DOMAIN_BASE=localhost:$PORT"
+  fi
 
   # Create local traefik.yml
   cat > traefik.yml <<EOF
@@ -105,6 +136,10 @@ EOF
   echo ""
   echo "✅ Traefik is running in LOCAL mode"
   echo ""
+  if [ "$PORT" != "$REQUESTED_PORT" ]; then
+    echo "📌 Using port ${PORT} (${REQUESTED_PORT} was in use)"
+    echo ""
+  fi
   echo "Your apps will be accessible at:"
   echo "  http://<name>.localhost:${PORT}"
   echo ""
