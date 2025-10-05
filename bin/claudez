@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve symlinks to find the actual script location
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SELF_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$ROOT_DIR/lib/common.sh"
 
