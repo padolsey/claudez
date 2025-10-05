@@ -33,6 +33,7 @@ case "$SUB" in
   ""|--help|-h)
     cat <<'EOF'
 Usage:
+  claudez <name>            # shorthand for 'claudez spawn <name>'
   claudez create <name> [--verify] # build + up + bootstrap (--verify checks Traefik routing)
   claudez spawn  <name> [--verify] # create + enter in one command
   claudez enter  <name>         # open shell & start/attach Claude (tmux)
@@ -53,5 +54,13 @@ Usage:
 Alias: cz (short alias for claudez)
 EOF
     ;;
-  *) die "Unknown subcommand: $SUB" ;;
+  *)
+    # Default: treat as zone name and spawn it, but error on reserved names
+    RESERVED_NAMES="create spawn enter shell reset rename status ls list rm remove delete logs restart stop start exec setup-status-page protect-services help"
+    if echo "$RESERVED_NAMES" | grep -qw "$SUB"; then
+      die "Cannot use reserved command name '$SUB' as a zone name. Did you mean: claudez $SUB <name>?"
+    fi
+    # Spawn the zone
+    exec "$SELF_DIR/claudez-spawn" "$SUB" "$@"
+    ;;
 esac

@@ -42,9 +42,8 @@ export ANTHROPIC_API_KEY="sk-ant-..."        # Option A: env var
 echo "sk-ant-..." > ~/.config/claudez/anthropic_key  # Option B: file
 
 # 3. Create and enter a zone:
-claudez create myapp
-claudez enter myapp
-tclaude  # Starts Claude inside the zone (persistent tmux session)
+claudez myapp  # Creates and enters the zone (shorthand for 'spawn')
+tclaude        # Starts Claude inside the zone (persistent tmux session)
 ```
 
 ### Detailed Setup Instructions
@@ -237,11 +236,12 @@ The key is read once during `claudez create` and injected into the zone's `.env`
 
 **Creating zones:**
 ```bash
-claudez create myapp              # Standard (3GB memory)
+claudez myapp                     # Shorthand: create + enter (spawn)
+claudez create myapp              # Create only (3GB memory)
 claudez create bigapp --large     # Large (5GB memory)
-claudez spawn myapp               # Create + enter in one command
-# Or use the short alias:
-cz create myapp
+claudez spawn myapp               # Create + enter (explicit)
+# Short alias works too:
+cz myapp
 ```
 
 **Daily workflow:**
