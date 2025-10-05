@@ -117,7 +117,28 @@ cp "$ROOT_DIR/templates/settings.local.json.tmpl" "${APP_DIR}/workspace/.claude/
 
 # Dockerfile & compose
 NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
-NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" MEM_RESERVATION="$MEM_RESERVATION" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
+
+# Set traefik entrypoint and domain (without port for Host rules)
+export TRAEFIK_ENTRYPOINT="$(get_traefik_entrypoint)"
+export DOMAIN_FOR_HOST="$(get_domain_without_port)"
+NAME="$NAME" DOMAIN_BASE="$DOMAIN_FOR_HOST" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" TRAEFIK_ENTRYPOINT="$TRAEFIK_ENTRYPOINT" MEM_RESERVATION="$MEM_RESERVATION" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
+
+# Remote mode: Add TLS labels and SSH mount
+if ! is_local_mode; then
+  # Insert TLS certresolver labels after entrypoints lines
+  sed -i.bak '/entrypoints=websecure/a\
+      - "traefik.http.routers.'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
+  sed -i.bak '/entrypoints=websecure/a\
+      - "traefik.http.routers.dev-'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
+  sed -i.bak '/entrypoints=websecure/a\
+      - "traefik.http.routers.vanilla-'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
+
+  # Add SSH mount for private repo access
+  sed -i.bak '/- \.\/workspace:\/workspace:rw/a\
+      - /root/.ssh:/tmp/host-ssh:ro' "${APP_DIR}/docker-compose.yml"
+
+  rm -f "${APP_DIR}/docker-compose.yml.bak"
+fi
 
 # Ownership for runtime user (10001)
 chown -R 10001:10001 "${APP_DIR}/workspace" || true
@@ -216,12 +237,14 @@ else
   log "Skipping Traefik route check (use --verify to enable)"
 fi
 
+PROTOCOL="$(get_protocol)"
+
 cat <<EOF
 
 ✅ Sandbox ready
-   PROD:    https://${NAME}.${DOMAIN_BASE}        (:3000 expected)
-   DEV:     https://dev-${NAME}.${DOMAIN_BASE}    (:8000 expected)
-   VANILLA: https://vanilla-${NAME}.${DOMAIN_BASE} (static :9000 — running now)
+   PROD:    ${PROTOCOL}://${NAME}.${DOMAIN_BASE}        (:3000 expected)
+   DEV:     ${PROTOCOL}://dev-${NAME}.${DOMAIN_BASE}    (:8000 expected)
+   VANILLA: ${PROTOCOL}://vanilla-${NAME}.${DOMAIN_BASE} (static :9000 — running now)
    Workspace: ${APP_DIR}/workspace
    Next app:  ${APP_DIR}/workspace/app
    Container: ${CONTAINER_NAME}
