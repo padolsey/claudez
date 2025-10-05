@@ -15,7 +15,7 @@ pm2 start "pnpm dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /
 pm2 logs nextjs-dev       # Watch the dev server start
 ```
 
-Then visit: `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}` to see the app running.
+Then visit: `http://dev-${CLAUDE_NAME}.localhost:8080` to see the app running.
 
 ## Environment Awareness
 - **You're running inside a Docker container** - Don't try to install Docker, systemd, or other system services
@@ -23,11 +23,12 @@ Then visit: `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}` to see the app running.
 - **Tmux session:** You're inside tmux session `claude` - use `Ctrl+B D` to detach (don't exit the shell)
 - **Resource limits:** 3GB RAM (5GB for large sandboxes), 1 CPU core - be mindful of heavy builds and concurrent processes
 - **Network access:** Full outbound internet access; only ports 3000/8000/9000 are routed via Traefik
+- **Local development:** This sandbox runs on your local machine, not a public server
 
 ## Routing & Ports
-- **Production:** https://${CLAUDE_NAME}.${DOMAIN_BASE} → container **:3000**
-- **Development:** https://dev-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:8000**
-- **Vanilla static:** https://vanilla-${CLAUDE_NAME}.${DOMAIN_BASE} → container **:9000**
+- **Production:** http://${CLAUDE_NAME}.localhost:8080 → container **:3000**
+- **Development:** http://dev-${CLAUDE_NAME}.localhost:8080 → container **:8000**
+- **Vanilla static:** http://vanilla-${CLAUDE_NAME}.localhost:8080 → container **:9000**
 
 ## Project Layout
 
@@ -113,7 +114,7 @@ You're here to help build, modify, and iterate on web applications. Your workspa
 1. Understand what the user wants to build/change
 2. Modify the existing Next.js project in `/workspace/app/`
 3. Start the dev server with pm2: `pm2 start "pnpm dev -- --hostname 0.0.0.0 --port 8000" --name nextjs-dev --cwd /workspace/app`
-4. User can view changes at `https://dev-${CLAUDE_NAME}.${DOMAIN_BASE}`
+4. User can view changes at `http://dev-${CLAUDE_NAME}.localhost:8080`
 5. When ready for production: build and start on :3000
 
 **Guidelines:**
