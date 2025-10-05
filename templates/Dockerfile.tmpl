@@ -79,12 +79,12 @@ fi
 su appuser -c 'git config --global url."git@github.com:".insteadOf "https://github.com/"'
 su appuser -c 'git config --global core.sshCommand "ssh -o StrictHostKeyChecking=accept-new"'
 
-# cc wrapper — runs Claude inside tmux (auto-attach), from /workspace
-cat >/usr/local/bin/cc <<'SH'
+# tclaude wrapper — runs Claude inside tmux (auto-attach), from /workspace
+cat >/usr/local/bin/tclaude <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 cd /workspace
-# Optional custom session name: cc -s mytask
+# Optional custom session name: tclaude -s mytask
 SESS="claude"
 if [ "${1:-}" = "-s" ]; then SESS="${2:-claude}"; shift 2; fi
 
@@ -109,7 +109,7 @@ else
   exec claude "$@"
 fi
 SH
-chmod +x /usr/local/bin/cc
+chmod +x /usr/local/bin/tclaude
 
 # Disk space monitoring script
 cat >/usr/local/bin/check-disk.sh <<'SH'

@@ -44,7 +44,7 @@ echo "sk-ant-..." > ~/.config/claudez/anthropic_key  # Option B: file
 # 3. Create and enter a zone:
 claudez create myapp
 claudez enter myapp
-cc  # Starts Claude inside the zone
+tclaude  # Starts Claude inside the zone (persistent tmux session)
 ```
 
 ### Detailed Setup Instructions
@@ -110,7 +110,7 @@ claudez create myapp
 claudez enter myapp
 
 # Inside container, start Claude:
-cc
+tclaude
 ```
 
 Open `http://vanilla-myapp.localhost:8080` to verify routing works.
@@ -184,7 +184,7 @@ claudez create myapp
 claudez enter myapp
 
 # Inside container, start Claude:
-cc
+tclaude
 ```
 
 Open `https://vanilla-myapp.yourdomain.com` to verify routing and SSL work.
@@ -230,7 +230,7 @@ The key is read once during `claudez create` and injected into the zone's `.env`
    - **Local**: `http://myapp.localhost:8080` → port 3000 (prod)
    - **Remote**: `https://myapp.yourdomain.com` → port 3000 (prod)
    - Plus dev and vanilla variants for both modes
-5. You enter the zone and run `cc` to start Claude in a persistent tmux session
+5. You enter the zone and run `tclaude` to start Claude in a persistent tmux session
 6. Inner Claude finds a ready-to-use Next.js project in `/workspace/app/`
 
 ## Quick Reference
@@ -247,12 +247,14 @@ cz create myapp
 **Daily workflow:**
 ```bash
 claudez enter myapp               # Attach to zone (on your machine)
-cc                                # Start/reattach Claude in tmux (inside container)
+tclaude                           # Start/reattach Claude in tmux (inside container)
 claudez ls                        # List all zones (on your machine)
 claudez stop myapp                # Stop when idle (on your machine)
 ```
 
-**What's `cc`?** It's a shorthand for `tmux new-session -A -s claude 'claude'` - starts Claude Code in a persistent tmux session that survives disconnects. Only works inside a zone.
+**Available inside zones:**
+- `claude` - Run Claude directly (dies on disconnect)
+- `tclaude` - Run Claude in persistent tmux session (survives disconnects, auto-logs to `/workspace/.claude-logs/`)
 
 **Access your apps:**
 Each zone gets three URLs (use whichever you need):
@@ -266,7 +268,7 @@ Each zone gets three URLs (use whichever you need):
 
 ## Available commands
 
-**All `claudez` commands run on your host machine** (outside containers). Commands like `cc` and `pm2` run inside zones after you `claudez enter`.
+**All `claudez` commands run on your host machine** (outside containers). Commands like `tclaude`, `claude`, and `pm2` run inside zones after you `claudez enter`.
 
 ### Management
 - `claudez create <name> [--verify] [--large]` — Build and start a new zone
@@ -306,9 +308,10 @@ Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explainin
 
 ## Sessions persist
 
-- The container runs **tmux** and provides `cc` which runs: `tmux new-session -A -s claude 'claude'`
+- The container provides **tmux** for persistent sessions
+- Use `tclaude` to run Claude in tmux (wraps: `tmux new-session -A -s claude 'claude'`)
 - If your SSH/terminal drops, the tmux session **keeps running**
-- Re-enter the container and run `cc` again to reattach instantly
+- Re-enter the container and run `tclaude` again to reattach instantly
 
 ## Recommended Workflows
 
@@ -319,11 +322,11 @@ Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explainin
 # Attach to existing zone
 claudez enter myproject
 
-# Inside container, attach to Claude
-cc
+# Inside container, start/attach to Claude
+tclaude
 ```
 
-If your connection drops, just run `claudez enter myproject` again - Claude is still running.
+If your connection drops, just run `claudez enter myproject` and `tclaude` again - Claude is still running.
 
 **Managing multiple zones:**
 ```bash
