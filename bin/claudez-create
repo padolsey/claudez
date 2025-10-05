@@ -140,9 +140,9 @@ if ! is_local_mode; then
   sed -i.bak '/entrypoints=websecure/a\
       - "traefik.http.routers.vanilla-'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
 
-  # Add SSH mount for private repo access
+  # Add SSH mount for private repo access (use user's SSH keys, not root)
   sed -i.bak '/- \.\/workspace:\/workspace:rw/a\
-      - /root/.ssh:/tmp/host-ssh:ro' "${APP_DIR}/docker-compose.yml"
+      - '"${HOME}"'/.ssh:/tmp/host-ssh:ro' "${APP_DIR}/docker-compose.yml"
 
   rm -f "${APP_DIR}/docker-compose.yml.bak"
 fi

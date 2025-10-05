@@ -434,6 +434,7 @@ Everything else (SSL config, Traefik entrypoints, certificate resolvers) is auto
 ## Customize
 
 - **Change deployment mode**: Set `DOMAIN_BASE` in `~/.claudezrc`
+- **Change zones directory**: Set `APPS_DIR` in `~/.claudezrc` (default: `~/.local/share/claudez/zones`)
 - **Change Node version**: Edit `conf/defaults.env` (`NODE_VERSION=20`)
 - **Change network name**: Set `TRAEFIK_NETWORK` in `~/.claudezrc`
 - **Customize Claude guidance**: Edit `templates/CLAUDE.md.tmpl`
@@ -486,7 +487,7 @@ A: Yes! Each gets its own subdomain: `app1.localhost:8080`, `app2.localhost:8080
 A: Edit `templates/Dockerfile.tmpl` to install your runtime. Or fork for multi-runtime support.
 
 **Q: Can I import an existing project?**
-A: Yes - create a zone, then `docker cp` your project into `/opt/apps/<name>/workspace/app/`
+A: Yes - create a zone, then `docker cp` your project into `~/.local/share/claudez/zones/<name>/workspace/app/`
 
 ## Contributing
 
