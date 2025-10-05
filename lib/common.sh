@@ -22,4 +22,39 @@ load_env() {
   set +a
 }
 
+# Mode detection helpers
+is_local_mode() {
+  [[ "$DOMAIN_BASE" =~ localhost ]]
+}
+
+get_protocol() {
+  if is_local_mode; then
+    echo "http"
+  else
+    echo "https"
+  fi
+}
+
+get_traefik_port() {
+  if is_local_mode; then
+    # Extract port from localhost:8090
+    echo "${DOMAIN_BASE#*:}"
+  else
+    echo "443"
+  fi
+}
+
+get_traefik_entrypoint() {
+  if is_local_mode; then
+    echo "web"
+  else
+    echo "websecure"
+  fi
+}
+
+get_domain_without_port() {
+  # Strip port from domain if present (localhost:8090 -> localhost)
+  echo "${DOMAIN_BASE%:*}"
+}
+
 trap 'code=$?; [ $code -ne 0 ] && echo "[provision] aborted ($code)"; exit $code' EXIT
