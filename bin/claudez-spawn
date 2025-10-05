@@ -18,13 +18,29 @@ done
 
 [ -z "$NAME" ] && die "Usage: claudez spawn <name> [--verify]"
 
-# Run create (not with exec since we need to continue)
-if [ "$VERIFY" -eq 1 ]; then
-  "$SELF_DIR/claudez-create" "$NAME" --verify || die "Failed to create sandbox '${NAME}'"
+load_env
+need docker
+CONTAINER_NAME="${NAME}-app"
+
+# Check if container exists
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  # Container exists - check if running
+  if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    log "Zone '${NAME}' already exists and is running, entering..."
+  else
+    log "Zone '${NAME}' exists but is stopped, starting..."
+    "$SELF_DIR/claudez-start" "$NAME"
+  fi
 else
-  "$SELF_DIR/claudez-create" "$NAME" || die "Failed to create sandbox '${NAME}'"
+  # Container doesn't exist - create it
+  log "Zone '${NAME}' doesn't exist, creating..."
+  if [ "$VERIFY" -eq 1 ]; then
+    "$SELF_DIR/claudez-create" "$NAME" --verify || die "Failed to create sandbox '${NAME}'"
+  else
+    "$SELF_DIR/claudez-create" "$NAME" || die "Failed to create sandbox '${NAME}'"
+  fi
 fi
 
-# Enter if create succeeded
-log "Entering container…"
+# Enter the zone
+log "Entering zone '${NAME}'..."
 exec "$SELF_DIR/claudez-enter" "$NAME"
