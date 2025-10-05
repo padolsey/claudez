@@ -1,6 +1,6 @@
 # claudez (Claude Zones)
 
-A tool for spinning up isolated, persistent **Claude Code** development environments on your local machine.
+A tool for spinning up isolated, persistent **Claude Code** development environments on your local machine or remote server.
 
 ## Why this exists
 
@@ -40,9 +40,14 @@ claudez stop myapp                # Stop when idle
 ```
 
 **Access your apps:**
-- Production: `http://myapp.localhost:8080`
-- Development: `http://dev-myapp.localhost:8080`
-- Vanilla demo: `http://vanilla-myapp.localhost:8080`
+Each zone gets three URLs:
+- **Production** (`myapp`): For built Next.js apps on port 3000
+- **Development** (`dev-myapp`): For dev server on port 8000
+- **Vanilla** (`vanilla-myapp`): Static demo page on port 9000
+
+**Local mode**: `http://myapp.localhost:8080`, `http://dev-myapp.localhost:8080`, `http://vanilla-myapp.localhost:8080`
+
+**Remote mode**: `https://myapp.yourdomain.com`, `https://dev-myapp.yourdomain.com`, `https://vanilla-myapp.yourdomain.com`
 
 ## Prerequisites
 
@@ -50,13 +55,23 @@ claudez stop myapp                # Stop when idle
 2. **Traefik** reverse proxy (see setup below)
 3. **Anthropic API key** ([get one here](https://console.anthropic.com/))
 
-## Quick Start (5 minutes)
+## Quick Start
 
-### 1. Install Docker
+Choose your deployment mode:
+
+<details>
+<summary><strong>🖥️  Local Mode (Laptop/Workstation)</strong> - Click to expand</summary>
+
+### Local Setup (5 minutes)
+
+Perfect for local development on macOS/Linux. Uses `localhost` with no SSL setup required.
+
+#### 1. Install Docker
 
 **macOS:**
 ```bash
-# Install Docker Desktop from https://docker.com/products/docker-desktop
+# Install Docker Desktop
+# Download from: https://docker.com/products/docker-desktop
 # Or via Homebrew:
 brew install --cask docker
 ```
@@ -68,99 +83,36 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-### 2. Set up Traefik (local reverse proxy)
-
-```bash
-# Create network
-docker network create local_dev
-
-# Create Traefik directory
-mkdir -p ~/provision-traefik
-cd ~/provision-traefik
-
-# Create config
-cat > traefik.yml <<'EOF'
-global:
-  checkNewVersion: false
-  sendAnonymousUsage: false
-
-entryPoints:
-  web:
-    address: ":8080"
-
-providers:
-  docker:
-    network: local_dev
-    exposedByDefault: false
-
-api:
-  dashboard: true
-  insecure: true
-EOF
-
-# Create docker-compose file
-cat > docker-compose.yml <<'EOF'
-services:
-  traefik:
-    image: traefik:v3.0
-    container_name: traefik-local
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    networks:
-      - local_dev
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.yml:/traefik.yml:ro
-
-networks:
-  local_dev:
-    external: true
-EOF
-
-# Start Traefik
-docker compose up -d
-```
-
-**See detailed Traefik setup instructions:** [docs/SETUP_LOCAL_TRAEFIK.md](docs/SETUP_LOCAL_TRAEFIK.md)
-
-### 3. Store your Anthropic API key
-
-```bash
-# Create key file (use default location)
-sudo mkdir -p /root
-sudo install -D -m 600 /dev/stdin /root/ANTHROPIC_KEY.txt
-# Paste your key, then press Ctrl+D
-
-# Or use custom location in ~/.provisionrc
-mkdir -p ~/.config/provision
-echo "your-api-key-here" > ~/.config/provision/anthropic_key
-chmod 600 ~/.config/provision/anthropic_key
-```
-
-### 4. Clone and set up claudez
+#### 2. Clone and install claudez
 
 ```bash
 cd ~
 git clone https://github.com/padolsey/claudez.git
 cd claudez
-
-# Run the installer:
 ./install.sh
-
-# This will:
-# - Create symlinks in /usr/local/bin for both 'claudez' and 'cz'
-# - Make commands globally available
 ```
 
-### 5. Create your first zone
+#### 3. Set up Traefik
+
+```bash
+./setup-traefik.sh
+# Auto-detects local mode and configures HTTP on port 8080
+```
+
+#### 4. Store your Anthropic API key
+
+```bash
+echo "your-api-key-here" | sudo tee /root/ANTHROPIC_KEY.txt
+sudo chmod 600 /root/ANTHROPIC_KEY.txt
+```
+
+#### 5. Create your first zone
 
 ```bash
 claudez create myapp
-# Or: cz create myapp
 
 # You'll see:
-# ✅ Zone ready
+# ✅ Sandbox ready
 #    PROD:    http://myapp.localhost:8080
 #    DEV:     http://dev-myapp.localhost:8080
 #    VANILLA: http://vanilla-myapp.localhost:8080
@@ -174,18 +126,99 @@ cc
 
 Open `http://vanilla-myapp.localhost:8080` to verify routing works.
 
+</details>
+
+<details>
+<summary><strong>☁️  Remote Mode (VPS/Server)</strong> - Click to expand</summary>
+
+### Remote Setup (10 minutes)
+
+Perfect for deployment on a VPS with a real domain. Uses HTTPS with automatic Let's Encrypt certificates.
+
+#### Prerequisites
+- A domain name (e.g., `grok.foo`)
+- DNS configured with wildcard: `*.yourdomain.com` → your server IP
+- Port 80 and 443 open in firewall
+
+#### 1. Install Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+#### 2. Clone and install claudez
+
+```bash
+cd ~
+git clone https://github.com/padolsey/claudez.git
+cd claudez
+./install.sh
+```
+
+#### 3. Configure your domain
+
+```bash
+echo "DOMAIN_BASE=yourdomain.com" > ~/.claudezrc
+```
+
+That's it! This single line automatically enables:
+- HTTPS with Let's Encrypt
+- Port 443 routing
+- SSL certificate auto-renewal
+
+#### 4. Set up Traefik
+
+```bash
+./setup-traefik.sh
+# Auto-detects remote mode and configures HTTPS with Let's Encrypt
+# You'll be prompted for an email for certificate notifications
+```
+
+#### 5. Store your Anthropic API key
+
+```bash
+echo "your-api-key-here" | sudo tee /root/ANTHROPIC_KEY.txt
+sudo chmod 600 /root/ANTHROPIC_KEY.txt
+```
+
+#### 6. Create your first zone
+
+```bash
+claudez create myapp
+
+# You'll see:
+# ✅ Sandbox ready
+#    PROD:    https://myapp.yourdomain.com
+#    DEV:     https://dev-myapp.yourdomain.com
+#    VANILLA: https://vanilla-myapp.yourdomain.com
+
+# Enter the zone
+claudez enter myapp
+
+# Inside container, start Claude:
+cc
+```
+
+Open `https://vanilla-myapp.yourdomain.com` to verify routing and SSL work.
+
+</details>
+
 ## How it works
 
 1. You run `claudez create myapp` (or `cz create myapp`)
-2. The tool generates a Docker container with:
+2. The tool detects your mode based on `DOMAIN_BASE`:
+   - Contains `localhost` → **Local mode** (HTTP, no SSL)
+   - Real domain → **Remote mode** (HTTPS, Let's Encrypt)
+3. Generates a Docker container with:
    - Node.js 20, Claude Code, tmux, pm2, pnpm
    - **Pre-scaffolded Next.js 15 project** (App Router, TypeScript, Tailwind CSS v4)
    - All dependencies cached for fast startup
-3. Traefik detects container labels and creates routes:
-   - `http://myapp.localhost:8080` → port 3000 (prod)
-   - `http://dev-myapp.localhost:8080` → port 8000 (dev)
-   - `http://vanilla-myapp.localhost:8080` → port 9000 (demo)
-4. Modern browsers automatically resolve `*.localhost` to `127.0.0.1` (zero DNS config!)
+4. Traefik detects container labels and creates routes:
+   - **Local**: `http://myapp.localhost:8080` → port 3000 (prod)
+   - **Remote**: `https://myapp.yourdomain.com` → port 3000 (prod)
+   - Plus dev and vanilla variants for both modes
 5. You enter the zone and run `cc` to start Claude in a persistent tmux session
 6. Inner Claude finds a ready-to-use Next.js project in `/workspace/app/`
 
@@ -289,16 +322,16 @@ Inner Claude probably ran `npm start` in the foreground, killing the main proces
 ### Traefik route not working
 ```bash
 # Check Traefik is running
-docker ps | grep traefik-local
+docker ps | grep traefik
 
 # Check routing
 claudez status myapp
 
 # View Traefik logs
-docker logs traefik-local
+docker logs traefik
 
 # Verify network
-docker network inspect local_dev
+docker network inspect claudez
 ```
 
 ### Disk space warnings
@@ -323,15 +356,38 @@ claudez create myapp --large
 # Find what's using it
 lsof -ti:8080
 
-# Change Traefik port in ~/provision-traefik/
-# Edit both traefik.yml and docker-compose.yml
+# Change port and reconfigure
+echo "DOMAIN_BASE=localhost:9000" > ~/.claudezrc
+./setup-traefik.sh
 ```
+
+## Deployment Modes
+
+claudez automatically detects which mode to use based on your `DOMAIN_BASE` setting:
+
+| Setting | Mode | Protocol | Port | SSL |
+|---------|------|----------|------|-----|
+| `localhost:8080` (default) | Local | HTTP | 8080 | No |
+| `yourdomain.com` | Remote | HTTPS | 443 | Yes (Let's Encrypt) |
+
+**To switch modes**: Just set `DOMAIN_BASE` in `~/.claudezrc`
+
+```bash
+# Remote mode
+echo "DOMAIN_BASE=grok.foo" > ~/.claudezrc
+
+# Back to local mode
+echo "DOMAIN_BASE=localhost:8080" > ~/.claudezrc
+```
+
+Everything else (SSL config, Traefik entrypoints, certificate resolvers) is automatically configured.
 
 ## Customize
 
-- Change Node version: Edit `conf/defaults.env` (`NODE_VERSION=20`)
-- Change network/domain: Edit `TRAEFIK_NETWORK` and `DOMAIN_BASE` in `conf/defaults.env`
-- Customize Claude guidance: Edit `templates/CLAUDE.md.tmpl`
+- **Change deployment mode**: Set `DOMAIN_BASE` in `~/.claudezrc`
+- **Change Node version**: Edit `conf/defaults.env` (`NODE_VERSION=20`)
+- **Change network name**: Set `TRAEFIK_NETWORK` in `~/.claudezrc`
+- **Customize Claude guidance**: Edit `templates/CLAUDE.md.tmpl`
 
 ## Cleanup
 
@@ -363,34 +419,16 @@ claudez reset myapp
   - `claudez shell <name>` - normal bash without Claude
 - **Debug**: `claudez logs <name> -f` for container logs
 
-## Local Development Mode
-
-This tool is designed for **local prototyping** on your MacBook/Linux machine.
-
-**Benefits:**
-- No domain/DNS setup required
-- No SSL certificates needed
-- Faster iteration (no network latency)
-- Safe experimentation (isolated from production systems)
-- Clean resource management (no leaked processes/ports)
-
-**Access pattern:**
-- Apps accessible at `http://<name>.localhost:8080`
-- Uses built-in browser resolution (Chrome, Firefox, Safari all support `*.localhost`)
-- All traffic stays on your machine (127.0.0.1)
-
-**Differences from remote deployment:**
-- Remote version would use real domains + Let's Encrypt SSL
-- This version uses HTTP + localhost (simpler, zero config)
-- Same isolation, resource limits, and lifecycle management
-
 ## FAQ
 
-**Q: Can I use a custom domain instead of localhost?**
-A: Yes, but you'll need to set up DNS and SSL. The remote deployment mode (not covered here) supports this.
+**Q: How do I switch between local and remote mode?**
+A: Just set `DOMAIN_BASE` in `~/.claudezrc`. If it contains `localhost`, you're in local mode. Otherwise, remote mode with HTTPS.
 
-**Q: Why port 8080 instead of 80?**
-A: Port 80 requires root. Port 8080 works without sudo and is standard for local dev.
+**Q: Can I use a custom port for local mode?**
+A: Yes! Set `DOMAIN_BASE=localhost:9000` (or any port) and run `./setup-traefik.sh` to reconfigure.
+
+**Q: Do I need to reconfigure anything when switching modes?**
+A: Just run `./setup-traefik.sh` after changing `DOMAIN_BASE`. Everything else auto-configures.
 
 **Q: Can I run multiple zones at once?**
 A: Yes! Each gets its own subdomain: `app1.localhost:8080`, `app2.localhost:8080`, etc.
