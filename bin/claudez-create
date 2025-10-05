@@ -148,7 +148,14 @@ export TRAEFIK_ENTRYPOINT="$(get_traefik_entrypoint)"
 export DOMAIN_FOR_HOST="$(get_domain_without_port)"
 NAME="$NAME" DOMAIN_BASE="$DOMAIN_FOR_HOST" TRAEFIK_NETWORK="$TRAEFIK_NETWORK" TRAEFIK_ENTRYPOINT="$TRAEFIK_ENTRYPOINT" MEM_RESERVATION="$MEM_RESERVATION" MEM_LIMIT="$MEM_LIMIT" CPU_LIMIT="$CPU_LIMIT" render "$ROOT_DIR/templates/docker-compose.yml.tmpl" "${APP_DIR}/docker-compose.yml" >/dev/null
 
-# Remote mode: Add TLS labels and SSH mount
+# Mount SSH keys for git operations (both local and remote modes)
+if [ -d "${HOME}/.ssh" ]; then
+  sed -i.bak '/- \.\/workspace:\/workspace:rw/a\
+      - '"${HOME}"'/.ssh:/tmp/host-ssh:ro' "${APP_DIR}/docker-compose.yml"
+  rm -f "${APP_DIR}/docker-compose.yml.bak"
+fi
+
+# Remote mode: Add TLS labels
 if ! is_local_mode; then
   # Insert TLS certresolver labels after entrypoints lines
   sed -i.bak '/entrypoints=websecure/a\
@@ -157,11 +164,6 @@ if ! is_local_mode; then
       - "traefik.http.routers.dev-'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
   sed -i.bak '/entrypoints=websecure/a\
       - "traefik.http.routers.vanilla-'"${NAME}"'.tls.certresolver=letsencrypt"' "${APP_DIR}/docker-compose.yml"
-
-  # Add SSH mount for private repo access (use user's SSH keys, not root)
-  sed -i.bak '/- \.\/workspace:\/workspace:rw/a\
-      - '"${HOME}"'/.ssh:/tmp/host-ssh:ro' "${APP_DIR}/docker-compose.yml"
-
   rm -f "${APP_DIR}/docker-compose.yml.bak"
 fi
 
