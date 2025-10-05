@@ -55,9 +55,9 @@ if [ "$EXISTING_CONTAINERS" -ge "$MAX_SANDBOXES" ]; then
   die "Maximum sandboxes ($MAX_SANDBOXES) reached. Current: $EXISTING_CONTAINERS
 
   This limit protects host stability. To create new sandboxes:
-  - Stop idle ones: provision stop <name>
-  - Remove unused ones: provision rm <name>
-  - Check status: provision ls"
+  - Stop idle ones: claudez stop <name>
+  - Remove unused ones: claudez rm <name>
+  - Check status: claudez ls"
 fi
 
 # Calculate total memory reservations to ensure we don't overcommit

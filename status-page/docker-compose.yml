@@ -1,7 +1,7 @@
 services:
   status:
     image: python:3.11-slim
-    container_name: provision-status
+    container_name: claudez-status
     restart: unless-stopped
     working_dir: /status
     command: python3 -m http.server 9999

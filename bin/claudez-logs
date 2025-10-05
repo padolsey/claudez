@@ -29,10 +29,10 @@ Options:
   -t, --timestamps     Show timestamps
 
 Examples:
-  provision logs myapp
-  provision logs myapp -f
-  provision logs myapp --tail 100
-  provision logs myapp -f --tail 50
+  claudez logs myapp
+  claudez logs myapp -f
+  claudez logs myapp --tail 100
+  claudez logs myapp -f --tail 50
 EOF
       exit 0
       ;;

@@ -27,9 +27,9 @@ sudo "$STATUS_DIR/collect-metrics.sh" "$STATUS_DIR/metrics.json"
 # 3. Set up systemd timer
 log "Installing systemd timer (${TIMER_INTERVAL}s interval)..."
 
-sudo tee /etc/systemd/system/provision-status-collect.service >/dev/null <<EOF
+sudo tee /etc/systemd/system/claudez-status-collect.service >/dev/null <<EOF
 [Unit]
-Description=Provision Status Metrics Collection
+Description=Claudez Status Metrics Collection
 After=docker.service
 Requires=docker.service
 
@@ -40,9 +40,9 @@ StandardOutput=journal
 StandardError=journal
 EOF
 
-sudo tee /etc/systemd/system/provision-status-collect.timer >/dev/null <<EOF
+sudo tee /etc/systemd/system/claudez-status-collect.timer >/dev/null <<EOF
 [Unit]
-Description=Provision Status Metrics Collection Timer
+Description=Claudez Status Metrics Collection Timer
 After=docker.service
 
 [Timer]
@@ -55,8 +55,8 @@ WantedBy=timers.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable provision-status-collect.timer
-sudo systemctl start provision-status-collect.timer
+sudo systemctl enable claudez-status-collect.timer
+sudo systemctl start claudez-status-collect.timer
 
 log "Timer installed and started."
 
@@ -75,18 +75,18 @@ log "Waiting for container to start..."
 sleep 2
 
 # 6. Verify
-if docker ps --format '{{.Names}}' | grep -q "^provision-status$"; then
+if docker ps --format '{{.Names}}' | grep -q "^claudez-status$"; then
   log "✓ Status page deployed successfully!"
   log ""
   log "Access at: https://status.${DOMAIN_BASE}"
   log ""
   log "Metrics update every ${TIMER_INTERVAL}s via systemd timer:"
-  log "  - View timer status: systemctl status provision-status-collect.timer"
-  log "  - View service logs: journalctl -u provision-status-collect.service"
+  log "  - View timer status: systemctl status claudez-status-collect.timer"
+  log "  - View service logs: journalctl -u claudez-status-collect.service"
   log "  - Manual collection: sudo ${STATUS_DIR}/collect-metrics.sh"
   log ""
   log "To change update interval:"
-  log "  provision setup-status-page <seconds>"
+  log "  claudez setup-status-page <seconds>"
 else
-  die "Status page container failed to start. Check: docker logs provision-status"
+  die "Status page container failed to start. Check: docker logs claudez-status"
 fi

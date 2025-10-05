@@ -11,8 +11,8 @@ Run these commands to set up Traefik for local development:
 docker network create local_dev
 
 # 2. Create Traefik directory
-mkdir -p ~/provision-traefik
-cd ~/provision-traefik
+mkdir -p ~/claudez-traefik
+cd ~/claudez-traefik
 
 # 3. Create Traefik configuration
 cat > traefik.yml <<'EOF'
@@ -126,16 +126,16 @@ docker compose restart
 
 ```bash
 # Stop Traefik
-cd ~/provision-traefik && docker compose stop
+cd ~/claudez-traefik && docker compose stop
 
 # Start Traefik
-cd ~/provision-traefik && docker compose start
+cd ~/claudez-traefik && docker compose start
 
 # View logs
 docker logs -f traefik-local
 
 # Remove completely
-cd ~/provision-traefik && docker compose down
+cd ~/claudez-traefik && docker compose down
 docker network rm local_dev
 ```
 

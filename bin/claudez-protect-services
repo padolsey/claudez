@@ -44,4 +44,4 @@ fi
 log ""
 log "OOM protection applied. Critical services will be spared during memory pressure."
 log "To make this persistent across reboots, add to crontab:"
-log "  @reboot /root/provision/bin/provision protect-services"
+log "  @reboot $SCRIPT_DIR/claudez protect-services"
