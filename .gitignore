@@ -31,3 +31,8 @@ Thumbs.db
 
 # User overrides
 .provisionrc
+
+# API keys and secrets
+.anthropic_key
+*.key
+.claude/
