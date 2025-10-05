@@ -36,12 +36,29 @@ health_vanilla_inside() {
 
 health_traefik_route() {
   local host="$1"; local tries="${2:-20}"
-  log "Sanity: Traefik route for ${host} via HTTPS…"
+  local protocol=$(get_protocol)
+  local port=$(get_traefik_port)
+
+  log "Sanity: Traefik route for ${host} via ${protocol^^}…"
+
   for i in $(seq 1 "$tries"); do
-    if curl -fsSk --resolve "${host}:443:127.0.0.1" "https://${host}/" >/dev/null 2>&1; then
-      log "OK: Traefik route is live."; return 0
+    if [[ "$protocol" == "http" ]]; then
+      # Local mode: simple HTTP check
+      if curl -fsS "${protocol}://${host}:${port}/" >/dev/null 2>&1; then
+        log "OK: Traefik route is live."; return 0
+      fi
+    else
+      # Remote mode: HTTPS with DNS resolution
+      if curl -fsSk --resolve "${host}:${port}:127.0.0.1" "${protocol}://${host}/" >/dev/null 2>&1; then
+        log "OK: Traefik route is live."; return 0
+      fi
     fi
     sleep 2
   done
-  log "WARNING: Traefik route not responding yet (DNS/propagation or Traefik down?)."
+
+  if [[ "$protocol" == "http" ]]; then
+    log "WARNING: Traefik route not responding (is Traefik running on :${port}?)."
+  else
+    log "WARNING: Traefik route not responding (DNS/propagation or Traefik down?)."
+  fi
 }
