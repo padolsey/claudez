@@ -2,5 +2,12 @@
 <html><head><meta charset="utf-8"><title>vanilla - $NAME</title></head>
 <body style="font-family: system-ui, sans-serif; padding: 2rem;">
   <h1>$NAME vanilla sandbox</h1>
-  <p>If you see this via Traefik on <strong>vanilla-$NAME.$DOMAIN_BASE</strong>, routing works.</p>
+  <p>If you see this via Traefik on <strong>http://vanilla-$NAME.localhost:8080</strong>, routing works.</p>
+  <hr>
+  <p><strong>Your sandbox URLs:</strong></p>
+  <ul>
+    <li><a href="http://$NAME.localhost:8080">Production</a> (port 3000)</li>
+    <li><a href="http://dev-$NAME.localhost:8080">Development</a> (port 8000)</li>
+    <li><a href="http://vanilla-$NAME.localhost:8080">Vanilla</a> (port 9000 - you are here)</li>
+  </ul>
 </body></html>
