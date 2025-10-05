@@ -80,7 +80,7 @@ mkdir -p "$APP_DIR" "$APP_DIR/workspace"
 
 ensure_network "$TRAEFIK_NETWORK"
 
-# Anthropic key (host-side)
+# Anthropic key (host-side) - REQUIRED
 # Priority: 1) $ANTHROPIC_API_KEY env var, 2) KEY_FILE
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   log "Using ANTHROPIC_API_KEY from environment"
@@ -90,9 +90,27 @@ else
   KEY_FILE_EXPANDED="${KEY_FILE/#\~/$HOME}"
   if [ -f "$KEY_FILE_EXPANDED" ]; then
     ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE_EXPANDED")"
-    [ -z "$ANTHROPIC_API_KEY" ] && log "WARNING: $KEY_FILE_EXPANDED is empty; Claude will prompt."
+    [ -z "$ANTHROPIC_API_KEY" ] && die "ERROR: $KEY_FILE_EXPANDED exists but is empty.
+
+Please add your Anthropic API key:
+  echo 'sk-ant-...' > $KEY_FILE_EXPANDED"
   else
-    log "WARNING: No API key found. Set \$ANTHROPIC_API_KEY or create $KEY_FILE_EXPANDED"
+    die "ERROR: No Anthropic API key found.
+
+Please set your API key using one of these methods:
+
+  1. Environment variable (recommended):
+     export ANTHROPIC_API_KEY='sk-ant-...'
+     # Add to ~/.bashrc or ~/.zshrc to persist
+
+  2. Config file:
+     mkdir -p ~/.config/claudez
+     echo 'sk-ant-...' > ~/.config/claudez/anthropic_key
+
+  3. Custom location:
+     echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
+
+Get your API key at: https://console.anthropic.com/"
   fi
 fi
 
