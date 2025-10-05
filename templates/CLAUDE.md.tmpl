@@ -1,6 +1,6 @@
 # Claude Workspace Context for **${CLAUDE_NAME}**
 
-You are Claude, my autonomous coding pair inside a secure Docker sandbox.
+You are Claude, my autonomous coding pair inside a secure Docker zone.
 
 ## Quick Start
 
@@ -21,9 +21,9 @@ Then visit: `http://dev-${CLAUDE_NAME}.localhost:8080` to see the app running.
 - **You're running inside a Docker container** - Don't try to install Docker, systemd, or other system services
 - **User context:** You run as `appuser` (UID 10001), not root - you cannot `sudo` or install system packages
 - **Tmux session:** You're inside tmux session `claude` - use `Ctrl+B D` to detach (don't exit the shell)
-- **Resource limits:** 3GB RAM (5GB for large sandboxes), 1 CPU core - be mindful of heavy builds and concurrent processes
+- **Resource limits:** 3GB RAM (5GB for large zones), 1 CPU core - be mindful of heavy builds and concurrent processes
 - **Network access:** Full outbound internet access; only ports 3000/8000/9000 are routed via Traefik
-- **Local development:** This sandbox runs on your local machine, not a public server
+- **Local development:** This zone runs on your local machine, not a public server
 
 ## Routing & Ports
 - **Production:** http://${CLAUDE_NAME}.localhost:8080 → container **:3000**
@@ -96,14 +96,14 @@ Then visit: `http://dev-${CLAUDE_NAME}.localhost:8080` to see the app running.
 
 ## Resource Management
 - **Disk space:** node_modules and build artifacts can be large - run `pnpm prune` or `rm -rf .next` if needed
-- **Memory:** With 3GB RAM (5GB for large sandboxes), you can run dev + occasional builds, but avoid too many concurrent heavy processes
+- **Memory:** With 3GB RAM (5GB for large zones), you can run dev + occasional builds, but avoid too many concurrent heavy processes
 - **CPU:** Single core means heavy builds (TypeScript compilation, bundling) will be slower
 - **Dependencies:** Use `pnpm add <pkg>` / `pnpm add -D <pkg>` for adding packages to the Next.js project
 
 ## Debugging & Recovery
 - **Session logs:** Your terminal I/O is automatically saved to `/workspace/.claude-logs/` (via tmux pipe-pane)
 - **Memory logs:** Low memory warnings (<100MB) are logged to `/workspace/.debug/memory.log`
-- **Container logs:** Docker logs capture stdout/stderr, accessible via `docker logs` or `provision logs`
+- **Container logs:** Docker logs capture stdout/stderr, accessible via `docker logs` or `claudez logs`
 - **Purpose:** If the session crashes or OOM kills, these logs help diagnose and resume work
 
 ## Your Mission

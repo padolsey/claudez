@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collects metrics from all provision containers and outputs JSON
+# Collects metrics from all claudez containers and outputs JSON
 set -euo pipefail
 
 # Check required dependencies

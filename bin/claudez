@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+SUB="${1:-}"; shift || true
+case "$SUB" in
+  create)  exec "$SELF_DIR/claudez-create" "$@" ;;
+  spawn)   exec "$SELF_DIR/claudez-spawn" "$@" ;;
+  enter)   exec "$SELF_DIR/claudez-enter" "$@" ;;
+  shell)   exec "$SELF_DIR/claudez-shell" "$@" ;;
+  reset)   exec "$SELF_DIR/claudez-reset" "$@" ;;
+  rename)  exec "$SELF_DIR/claudez-rename" "$@" ;;
+  status)  exec "$SELF_DIR/claudez-status" "$@" ;;
+  ls|list) exec "$SELF_DIR/claudez-ls" "$@" ;;
+  rm|remove|delete) exec "$SELF_DIR/claudez-rm" "$@" ;;
+  logs)    exec "$SELF_DIR/claudez-logs" "$@" ;;
+  restart) exec "$SELF_DIR/claudez-restart" "$@" ;;
+  stop)    exec "$SELF_DIR/claudez-stop" "$@" ;;
+  start)   exec "$SELF_DIR/claudez-start" "$@" ;;
+  exec)    exec "$SELF_DIR/claudez-exec" "$@" ;;
+  setup-status-page) exec "$SELF_DIR/claudez-setup-status-page" "$@" ;;
+  protect-services) exec "$SELF_DIR/claudez-protect-services" "$@" ;;
+  ""|--help|-h)
+    cat <<'EOF'
+Usage:
+  claudez create <name> [--verify] # build + up + bootstrap (--verify checks Traefik routing)
+  claudez spawn  <name> [--verify] # create + enter in one command
+  claudez enter  <name>         # open shell & start/attach Claude (tmux)
+  claudez shell  <name>         # open normal shell without starting Claude
+  claudez reset  <name>         # remove container/image/app dir then recreate
+  claudez rename <old> <new>    # rename a zone (stops, renames, recreates)
+  claudez status <name>         # health checks (vanilla/Traefik)
+  claudez ls                    # list all zones with status
+  claudez rm     <name> [--force] # permanently delete zone
+  claudez logs   <name> [options] # view container logs (-f, --tail, etc)
+  claudez restart <name> [--force] # restart container
+  claudez stop   <name> [--force] # stop container
+  claudez start  <name>         # start stopped container
+  claudez exec   <name> <cmd>   # run command in container as appuser
+  claudez setup-status-page [interval] # deploy status page at status.${DOMAIN_BASE} (default: 30s)
+  claudez protect-services # protect Docker/Traefik/SSH from OOM killer
+
+Alias: cz (short alias for claudez)
+EOF
+    ;;
+  *) die "Unknown subcommand: $SUB" ;;
+esac

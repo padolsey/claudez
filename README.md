@@ -1,4 +1,4 @@
-# Claude Sandbox Provisioner
+# claudez (Claude Zones)
 
 A tool for spinning up isolated, persistent **Claude Code** development environments on your local machine.
 
@@ -11,30 +11,32 @@ I wanted to prototype rapidly with Claude Code without worrying about:
 - **Port conflicts** - Multiple projects fighting for :3000
 - **Dependency conflicts** - Different Node versions, global packages colliding
 
-This tool creates lightweight sandboxes where Claude can work safely and cleanly. Each sandbox gets:
+This tool creates lightweight zones where Claude can work safely and cleanly. Each zone gets:
 - **Isolated environment** with automatic HTTP routing via subdomains
 - **Resource limits** (3GB RAM, 1 CPU core - prevents runaway builds)
 - **Persistent tmux sessions** (survives SSH disconnects)
 - **Pre-scaffolded Next.js project** ready to modify
 - **Clean lifecycle management** (create, stop, start, destroy)
 
-Think of it as "containerized rapid prototyping" - spin up a sandbox, let Claude build in it, iterate fast, and clean up when done.
+Think of it as "containerized rapid prototyping" - spin up a zone, let Claude build in it, iterate fast, and clean up when done.
 
 ## Quick Reference
 
-**Creating sandboxes:**
+**Creating zones:**
 ```bash
-provision create myapp              # Standard (3GB memory)
-provision create bigapp --large     # Large (5GB memory)
-provision spawn myapp               # Create + enter in one command
+claudez create myapp              # Standard (3GB memory)
+claudez create bigapp --large     # Large (5GB memory)
+claudez spawn myapp               # Create + enter in one command
+# Or use the short alias:
+cz create myapp
 ```
 
 **Daily workflow:**
 ```bash
-provision enter myapp               # Attach to sandbox
-cc                                  # Start Claude (inside container)
-provision ls                        # List all sandboxes
-provision stop myapp                # Stop when idle
+claudez enter myapp               # Attach to zone
+cc                                # Start Claude (inside container)
+claudez ls                        # List all zones
+claudez stop myapp                # Stop when idle
 ```
 
 **Access your apps:**
@@ -136,34 +138,35 @@ echo "your-api-key-here" > ~/.config/provision/anthropic_key
 chmod 600 ~/.config/provision/anthropic_key
 ```
 
-### 4. Clone and set up provision
+### 4. Clone and set up claudez
 
 ```bash
 cd ~
-git clone https://github.com/padolsey/provision.git
-cd provision
+git clone https://github.com/padolsey/claudez.git
+cd claudez
 
-# Add to PATH (choose one):
-echo "alias provision='~/provision/bin/provision'" >> ~/.bashrc
-source ~/.bashrc
+# Run the installer:
+./install.sh
 
-# Or create global link:
-sudo ln -s ~/provision/bin/provision /usr/local/bin/provision
+# This will:
+# - Create symlinks in /usr/local/bin for both 'claudez' and 'cz'
+# - Make commands globally available
 ```
 
-### 5. Create your first sandbox
+### 5. Create your first zone
 
 ```bash
-provision create myapp
+claudez create myapp
+# Or: cz create myapp
 
 # You'll see:
-# ✅ Sandbox ready
+# ✅ Zone ready
 #    PROD:    http://myapp.localhost:8080
 #    DEV:     http://dev-myapp.localhost:8080
 #    VANILLA: http://vanilla-myapp.localhost:8080
 
-# Enter the sandbox
-provision enter myapp
+# Enter the zone
+claudez enter myapp
 
 # Inside container, start Claude:
 cc
@@ -173,7 +176,7 @@ Open `http://vanilla-myapp.localhost:8080` to verify routing works.
 
 ## How it works
 
-1. You run `provision create myapp`
+1. You run `claudez create myapp` (or `cz create myapp`)
 2. The tool generates a Docker container with:
    - Node.js 20, Claude Code, tmux, pm2, pnpm
    - **Pre-scaffolded Next.js 15 project** (App Router, TypeScript, Tailwind CSS v4)
@@ -183,35 +186,35 @@ Open `http://vanilla-myapp.localhost:8080` to verify routing works.
    - `http://dev-myapp.localhost:8080` → port 8000 (dev)
    - `http://vanilla-myapp.localhost:8080` → port 9000 (demo)
 4. Modern browsers automatically resolve `*.localhost` to `127.0.0.1` (zero DNS config!)
-5. You enter the sandbox and run `cc` to start Claude in a persistent tmux session
+5. You enter the zone and run `cc` to start Claude in a persistent tmux session
 6. Inner Claude finds a ready-to-use Next.js project in `/workspace/app/`
 
 ## Available commands
 
 ### Management
-- `provision create <name> [--verify] [--large]` — Build and start a new sandbox
-- `provision spawn <name> [--verify] [--large]` — Create and enter in one command
-- `provision ls` — List all provisioned apps with status
-- `provision rm <name> [--force]` — Permanently delete an app
-- `provision reset <name>` — Remove and recreate from scratch
+- `claudez create <name> [--verify] [--large]` — Build and start a new zone
+- `claudez spawn <name> [--verify] [--large]` — Create and enter in one command
+- `claudez ls` — List all zones with status
+- `claudez rm <name> [--force]` — Permanently delete a zone
+- `claudez reset <name>` — Remove and recreate from scratch
 
 ### Lifecycle
-- `provision start <name>` — Start a stopped container
-- `provision stop <name>` — Stop a running container
-- `provision restart <name>` — Restart a container
+- `claudez start <name>` — Start a stopped container
+- `claudez stop <name>` — Stop a running container
+- `claudez restart <name>` — Restart a container
 
 ### Development
-- `provision enter <name>` — Open shell and attach to Claude session (tmux)
-- `provision shell <name>` — Open normal shell without starting Claude
-- `provision exec <name> <cmd>` — Run a command in the container
-- `provision logs <name> [options]` — View container logs
+- `claudez enter <name>` — Open shell and attach to Claude session (tmux)
+- `claudez shell <name>` — Open normal shell without starting Claude
+- `claudez exec <name> <cmd>` — Run a command in the container
+- `claudez logs <name> [options]` — View container logs
 
 ### Monitoring
-- `provision status <name>` — Health checks (container + routing)
+- `claudez status <name>` — Health checks (container + routing)
 
 ## Resource Limits & Security
 
-Each sandbox container has:
+Each zone container has:
 - **3GB RAM limit** (standard) or **5GB** (with `--large` flag)
 - **1.5GB RAM guaranteed** (memory reservation)
 - **1 CPU core** - prevents CPU hogging
@@ -236,36 +239,36 @@ Inner Claude is pre-configured with guidance in `/workspace/CLAUDE.md` explainin
 
 **Starting work:**
 ```bash
-# Attach to existing sandbox
-provision enter myproject
+# Attach to existing zone
+claudez enter myproject
 
 # Inside container, attach to Claude
 cc
 ```
 
-If your connection drops, just run `provision enter myproject` again - Claude is still running.
+If your connection drops, just run `claudez enter myproject` again - Claude is still running.
 
-**Managing multiple sandboxes:**
+**Managing multiple zones:**
 ```bash
 # See what's running
-provision ls
+claudez ls
 
-# Stop idle sandboxes
-provision stop oldproject
+# Stop idle zones
+claudez stop oldproject
 
 # Start when needed
-provision start oldproject
+claudez start oldproject
 ```
 
 ### When builds fail with OOM
 
 ```bash
 # Recreate with --large flag (5GB instead of 3GB)
-provision rm myproject
-provision create myproject --large
+claudez rm myproject
+claudez create myproject --large
 ```
 
-## Common commands inside the sandbox
+## Common commands inside the zone
 
 - Dev Next.js:
   ```bash
@@ -281,7 +284,7 @@ provision create myproject --large
 ## Troubleshooting
 
 ### Container exited unexpectedly
-Inner Claude probably ran `npm start` in the foreground, killing the main process. The container auto-restarts. Use `provision enter <name>` to reattach.
+Inner Claude probably ran `npm start` in the foreground, killing the main process. The container auto-restarts. Use `claudez enter <name>` to reattach.
 
 ### Traefik route not working
 ```bash
@@ -289,7 +292,7 @@ Inner Claude probably ran `npm start` in the foreground, killing the main proces
 docker ps | grep traefik-local
 
 # Check routing
-provision status myapp
+claudez status myapp
 
 # View Traefik logs
 docker logs traefik-local
@@ -300,9 +303,9 @@ docker network inspect local_dev
 
 ### Disk space warnings
 ```bash
-provision exec myapp "du -sh /workspace/* | sort -rh | head -10"
-provision exec myapp "rm -rf /workspace/app/node_modules"
-provision exec myapp "rm -rf /workspace/app/.next"
+claudez exec myapp "du -sh /workspace/* | sort -rh | head -10"
+claudez exec myapp "rm -rf /workspace/app/node_modules"
+claudez exec myapp "rm -rf /workspace/app/.next"
 ```
 
 ### Memory/CPU issues
@@ -311,8 +314,8 @@ provision exec myapp "rm -rf /workspace/app/.next"
 docker stats myapp-app
 
 # If OOM killed, recreate with --large
-provision rm myapp
-provision create myapp --large
+claudez rm myapp
+claudez create myapp --large
 ```
 
 ### Port 8080 already in use
@@ -334,12 +337,12 @@ lsof -ti:8080
 
 **Delete an app permanently:**
 ```bash
-provision rm myapp
+claudez rm myapp
 ```
 
 **Reset an app (delete and recreate):**
 ```bash
-provision reset myapp
+claudez reset myapp
 ```
 
 ## Project Structure
@@ -347,18 +350,18 @@ provision reset myapp
 - `bin/` — thin, single-purpose commands (one file per subcommand)
 - `lib/` — shared helpers (env loading, docker utilities, template rendering)
 - `templates/` — all generated files (Dockerfile, compose, etc.)
-- `conf/defaults.env` — repo defaults; override in `~/.provisionrc`
+- `conf/defaults.env` — repo defaults; override in `~/.claudezrc`
 - `docs/` — detailed setup guides
 
 ## Ops notes
 
 - **Use tmux** inside containers for persistent sessions
 - **Never commit secrets** - `.env` files are gitignored
-- **Health checks**: `provision status <name>` validates container + routing
+- **Health checks**: `claudez status <name>` validates container + routing
 - **Shell access**:
-  - `provision enter <name>` - attach to Claude in tmux
-  - `provision shell <name>` - normal bash without Claude
-- **Debug**: `provision logs <name> -f` for container logs
+  - `claudez enter <name>` - attach to Claude in tmux
+  - `claudez shell <name>` - normal bash without Claude
+- **Debug**: `claudez logs <name> -f` for container logs
 
 ## Local Development Mode
 
@@ -389,14 +392,14 @@ A: Yes, but you'll need to set up DNS and SSL. The remote deployment mode (not c
 **Q: Why port 8080 instead of 80?**
 A: Port 80 requires root. Port 8080 works without sudo and is standard for local dev.
 
-**Q: Can I run multiple sandboxes at once?**
+**Q: Can I run multiple zones at once?**
 A: Yes! Each gets its own subdomain: `app1.localhost:8080`, `app2.localhost:8080`, etc.
 
 **Q: What if I want to use Python/Go/Rust instead of Node?**
 A: Edit `templates/Dockerfile.tmpl` to install your runtime. Or fork for multi-runtime support.
 
 **Q: Can I import an existing project?**
-A: Yes - create a sandbox, then `docker cp` your project into `/opt/apps/<name>/workspace/app/`
+A: Yes - create a zone, then `docker cp` your project into `/opt/apps/<name>/workspace/app/`
 
 ## Contributing
 

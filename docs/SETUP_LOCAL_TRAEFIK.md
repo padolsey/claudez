@@ -1,6 +1,6 @@
 # Local Traefik Setup
 
-This guide sets up a local Traefik instance for the provision tool on your MacBook/Linux machine.
+This guide sets up a local Traefik instance for the claudez tool on your MacBook/Linux machine.
 
 ## Quick Setup
 
@@ -145,7 +145,7 @@ Once Traefik is running:
 
 ```bash
 # Create your first sandbox
-provision create myapp
+claudez create myapp
 
 # Access it at:
 # http://myapp.localhost:8080         (prod)

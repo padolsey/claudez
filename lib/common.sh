@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-need() { command -v "$1" >/dev/null || { printf '[provision:ERROR] missing dependency: %s\n' "$1" >&2; exit 1; }; }
-log()  { printf '[provision] %s\n' "$*"; }
-die()  { printf '[provision:ERROR] %s\n' "$*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || { printf '[claudez:ERROR] missing dependency: %s\n' "$1" >&2; exit 1; }; }
+log()  { printf '[claudez] %s\n' "$*"; }
+die()  { printf '[claudez:ERROR] %s\n' "$*" >&2; exit 1; }
 confirm() {
   local prompt="${1:-Continue?}"
-  printf '[provision] %s [y/N] ' "$prompt" >&2
+  printf '[claudez] %s [y/N] ' "$prompt" >&2
   read -r response
   [[ "$response" =~ ^[Yy]$ ]] || die "Cancelled."
 }
@@ -17,7 +17,7 @@ load_env() {
   : "${PROJECT_ENV:=}"  # optional
   ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
   [ -f "$ROOT_DIR/conf/defaults.env" ] && . "$ROOT_DIR/conf/defaults.env"
-  [ -f "$HOME/.provisionrc" ] && . "$HOME/.provisionrc"
+  [ -f "$HOME/.claudezrc" ] && . "$HOME/.claudezrc"
   [ -n "$PROJECT_ENV" ] && [ -f "$PROJECT_ENV" ] && . "$PROJECT_ENV"
   set +a
 }
@@ -57,4 +57,4 @@ get_domain_without_port() {
   echo "${DOMAIN_BASE%:*}"
 }
 
-trap 'code=$?; [ $code -ne 0 ] && echo "[provision] aborted ($code)"; exit $code' EXIT
+trap 'code=$?; [ $code -ne 0 ] && echo "[claudez] aborted ($code)"; exit $code' EXIT
