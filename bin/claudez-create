@@ -81,12 +81,19 @@ mkdir -p "$APP_DIR" "$APP_DIR/workspace"
 ensure_network "$TRAEFIK_NETWORK"
 
 # Anthropic key (host-side)
-ANTHROPIC_API_KEY=""
-if [ -f "$KEY_FILE" ]; then
-  ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE")"
-  [ -z "$ANTHROPIC_API_KEY" ] && log "WARNING: $KEY_FILE is empty; Claude will prompt."
+# Priority: 1) $ANTHROPIC_API_KEY env var, 2) KEY_FILE
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  log "Using ANTHROPIC_API_KEY from environment"
 else
-  log "WARNING: $KEY_FILE not found; Claude will prompt for auth."
+  ANTHROPIC_API_KEY=""
+  # Expand tilde in KEY_FILE
+  KEY_FILE_EXPANDED="${KEY_FILE/#\~/$HOME}"
+  if [ -f "$KEY_FILE_EXPANDED" ]; then
+    ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE_EXPANDED")"
+    [ -z "$ANTHROPIC_API_KEY" ] && log "WARNING: $KEY_FILE_EXPANDED is empty; Claude will prompt."
+  else
+    log "WARNING: No API key found. Set \$ANTHROPIC_API_KEY or create $KEY_FILE_EXPANDED"
+  fi
 fi
 
 # .env inside app dir (container env)

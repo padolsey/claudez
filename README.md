@@ -101,9 +101,23 @@ cd claudez
 
 #### 4. Store your Anthropic API key
 
+**Option 1: Environment variable (recommended)**
 ```bash
-echo "your-api-key-here" | sudo tee /root/ANTHROPIC_KEY.txt
-sudo chmod 600 /root/ANTHROPIC_KEY.txt
+export ANTHROPIC_API_KEY="your-api-key-here"
+# Add to ~/.bashrc or ~/.zshrc to persist
+```
+
+**Option 2: Config file**
+```bash
+mkdir -p ~/.config/claudez
+echo "your-api-key-here" > ~/.config/claudez/anthropic_key
+chmod 600 ~/.config/claudez/anthropic_key
+```
+
+**Option 3: Custom location**
+```bash
+# Set KEY_FILE in ~/.claudezrc
+echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
 ```
 
 #### 5. Create your first zone
@@ -178,9 +192,23 @@ That's it! This single line automatically enables:
 
 #### 5. Store your Anthropic API key
 
+**Option 1: Environment variable (recommended)**
 ```bash
-echo "your-api-key-here" | sudo tee /root/ANTHROPIC_KEY.txt
-sudo chmod 600 /root/ANTHROPIC_KEY.txt
+export ANTHROPIC_API_KEY="your-api-key-here"
+# Add to ~/.bashrc or ~/.zshrc to persist
+```
+
+**Option 2: Config file**
+```bash
+mkdir -p ~/.config/claudez
+echo "your-api-key-here" > ~/.config/claudez/anthropic_key
+chmod 600 ~/.config/claudez/anthropic_key
+```
+
+**Option 3: Custom location**
+```bash
+# Set KEY_FILE in ~/.claudezrc
+echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
 ```
 
 #### 6. Create your first zone
