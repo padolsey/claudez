@@ -125,8 +125,8 @@ Open `http://vanilla-myapp.localhost:8080` to verify routing works.
 Perfect for deployment on a VPS with a real domain. Uses HTTPS with automatic Let's Encrypt certificates.
 
 #### Prerequisites
-- A domain name (e.g., `grok.foo`)
-- DNS configured with wildcard: `*.yourdomain.com` → your server IP
+- A domain name (e.g., `yourdomain.foo`)
+- DNS configured with wildcard: `*.yourdomain.foo` → your server IP
 - Port 80 and 443 open in firewall
 
 #### 1. Install Docker
@@ -428,7 +428,7 @@ claudez automatically detects which mode to use based on your `DOMAIN_BASE` sett
 
 ```bash
 # Remote mode
-echo "DOMAIN_BASE=grok.foo" > ~/.claudezrc
+echo "DOMAIN_BASE=yourdomain.foo" > ~/.claudezrc
 
 # Back to local mode
 echo "DOMAIN_BASE=localhost:8080" > ~/.claudezrc
