@@ -24,8 +24,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[ -z "$OLD_NAME" ] && die "Usage: provision rename <old-name> <new-name>"
-[ -z "$NEW_NAME" ] && die "Usage: provision rename <old-name> <new-name>"
+[ -z "$OLD_NAME" ] && die "Usage: claudez rename <old-name> <new-name>"
+[ -z "$NEW_NAME" ] && die "Usage: claudez rename <old-name> <new-name>"
 
 load_env
 need docker

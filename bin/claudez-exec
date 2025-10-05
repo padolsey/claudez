@@ -10,12 +10,12 @@ COMMAND=""
 # Parse args
 if [ $# -lt 2 ]; then
   cat <<'EOF'
-Usage: provision exec <name> <command>
+Usage: claudez exec <name> <command>
 
 Examples:
-  provision exec myapp "npm install"
-  provision exec myapp "ls -la /workspace"
-  provision exec myapp "pm2 list"
+  claudez exec myapp "npm install"
+  claudez exec myapp "ls -la /workspace"
+  claudez exec myapp "pm2 list"
 
 Commands run as appuser in /workspace directory.
 EOF
@@ -34,7 +34,7 @@ CONTAINER_NAME="${NAME}-app"
 # Check if container exists and is running
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-    die "Container '${CONTAINER_NAME}' exists but is not running. Start it first with: provision start ${NAME}"
+    die "Container '${CONTAINER_NAME}' exists but is not running. Start it first with: claudez start ${NAME}"
   else
     die "Container '${CONTAINER_NAME}' not found."
   fi

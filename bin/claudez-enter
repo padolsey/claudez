@@ -4,19 +4,19 @@ SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$ROOT_DIR/lib/common.sh"
 
-NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision enter <name>"
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: claudez enter <name>"
 CONTAINER_NAME="${NAME}-app"
 
 need docker
 
 # Check if container exists
 if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-  die "Container '${CONTAINER_NAME}' not found. Create it first with: provision create ${NAME}"
+  die "Container '${CONTAINER_NAME}' not found. Create it first with: claudez create ${NAME}"
 fi
 
 # Check if container is running
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-  die "Container '${CONTAINER_NAME}' exists but is not running. Start it with: provision start ${NAME}"
+  die "Container '${CONTAINER_NAME}' exists but is not running. Start it with: claudez start ${NAME}"
 fi
 
 # Prefer launching/attaching Claude via the tmux-backed tclaude wrapper.

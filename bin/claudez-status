@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$ROOT_DIR/lib/common.sh"
 . "$ROOT_DIR/lib/docker.sh"
 
-NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision status <name>"
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: claudez status <name>"
 load_env
 CONTAINER_NAME="${NAME}-app"
 

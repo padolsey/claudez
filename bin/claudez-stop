@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[ -z "$NAME" ] && die "Usage: provision stop <name> [--force]"
+[ -z "$NAME" ] && die "Usage: claudez stop <name> [--force]"
 
 load_env
 need docker

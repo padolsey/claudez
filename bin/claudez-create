@@ -17,15 +17,15 @@ while [[ $# -gt 0 ]]; do
     --large) SIZE_PROFILE="large"; shift ;;
     --help)
       cat <<'EOF'
-Usage: provision create <name> [--verify] [--large]
+Usage: claudez create <name> [--verify] [--large]
 
 Options:
   --verify  Wait for Traefik routing and verify connectivity
   --large   Use 5GB memory limit for heavy builds (default: 3GB)
 
 Examples:
-  provision create myapp              # Standard 3GB limit
-  provision create bigapp --large     # 5GB for complex Next.js builds
+  claudez create myapp              # Standard 3GB limit
+  claudez create bigapp --large     # 5GB for complex Next.js builds
 EOF
       exit 0
       ;;
@@ -34,7 +34,7 @@ EOF
   esac
 done
 
-[ -z "$NAME" ] && die "Usage: provision create <name> [--verify] [--large] (try --help)"
+[ -z "$NAME" ] && die "Usage: claudez create <name> [--verify] [--large] (try --help)"
 
 load_env
 
@@ -257,7 +257,7 @@ cat <<EOF
    Container: ${CONTAINER_NAME}
 
 Enter and start Claude:
-   provision enter ${NAME}
+   claudez enter ${NAME}
 
-Verify routing: provision status ${NAME}
+Verify routing: claudez status ${NAME}
 EOF

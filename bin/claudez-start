@@ -4,7 +4,7 @@ SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$ROOT_DIR/lib/common.sh"
 
-NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: provision start <name>"
+NAME="${1:-}"; [ -z "$NAME" ] && die "Usage: claudez start <name>"
 
 load_env
 need docker

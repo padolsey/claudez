@@ -19,7 +19,7 @@ while [[ $# -gt 0 ]]; do
     -t|--timestamps) DOCKER_ARGS+=("$1"); shift ;;
     --help)
       cat <<'EOF'
-Usage: provision logs <name> [options]
+Usage: claudez logs <name> [options]
 
 Options:
   -f, --follow         Follow log output
@@ -41,7 +41,7 @@ EOF
   esac
 done
 
-[ -z "$NAME" ] && die "Usage: provision logs <name> [options]"
+[ -z "$NAME" ] && die "Usage: claudez logs <name> [options]"
 
 load_env
 need docker
