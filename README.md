@@ -2,6 +2,8 @@
 
 A tool for spinning up isolated, persistent **Claude Code** development environments on your local machine or remote server.
 
+**What's a "zone"?** A zone is an isolated Docker container running Claude Code with a pre-scaffolded Next.js 15 project, dedicated resources (3-5GB RAM), and automatic subdomain routing. Think of it as a disposable workspace where Claude can build without touching your main system.
+
 ## Why this exists
 
 I wanted to prototype rapidly with Claude Code without worrying about:
@@ -20,35 +22,6 @@ This tool creates lightweight zones where Claude can work safely and cleanly. Ea
 
 Think of it as "containerized rapid prototyping" - spin up a zone, let Claude build in it, iterate fast, and clean up when done.
 
-## Quick Reference
-
-**Creating zones:**
-```bash
-claudez create myapp              # Standard (3GB memory)
-claudez create bigapp --large     # Large (5GB memory)
-claudez spawn myapp               # Create + enter in one command
-# Or use the short alias:
-cz create myapp
-```
-
-**Daily workflow:**
-```bash
-claudez enter myapp               # Attach to zone
-cc                                # Start Claude (inside container)
-claudez ls                        # List all zones
-claudez stop myapp                # Stop when idle
-```
-
-**Access your apps:**
-Each zone gets three URLs:
-- **Production** (`myapp`): For built Next.js apps on port 3000
-- **Development** (`dev-myapp`): For dev server on port 8000
-- **Vanilla** (`vanilla-myapp`): Static demo page on port 9000
-
-**Local mode**: `http://myapp.localhost:8080`, `http://dev-myapp.localhost:8080`, `http://vanilla-myapp.localhost:8080`
-
-**Remote mode**: `https://myapp.yourdomain.com`, `https://dev-myapp.yourdomain.com`, `https://vanilla-myapp.yourdomain.com`
-
 ## Prerequisites
 
 1. **Docker** installed and running
@@ -56,6 +29,25 @@ Each zone gets three URLs:
 3. **Anthropic API key** ([get one here](https://console.anthropic.com/))
 
 ## Quick Start
+
+**TL;DR for local development:**
+```bash
+# 1. Install Docker, then:
+git clone https://github.com/padolsey/claudez.git && cd claudez
+./install.sh
+./setup-traefik.sh
+
+# 2. Set API key (pick one):
+export ANTHROPIC_API_KEY="sk-ant-..."        # Option A: env var
+echo "sk-ant-..." > ~/.config/claudez/anthropic_key  # Option B: file
+
+# 3. Create and enter a zone:
+claudez create myapp
+claudez enter myapp
+cc  # Starts Claude inside the zone
+```
+
+### Detailed Setup Instructions
 
 Choose your deployment mode:
 
@@ -101,24 +93,7 @@ cd claudez
 
 #### 4. Store your Anthropic API key
 
-**Option 1: Environment variable (recommended)**
-```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-# Add to ~/.bashrc or ~/.zshrc to persist
-```
-
-**Option 2: Config file**
-```bash
-mkdir -p ~/.config/claudez
-echo "your-api-key-here" > ~/.config/claudez/anthropic_key
-chmod 600 ~/.config/claudez/anthropic_key
-```
-
-**Option 3: Custom location**
-```bash
-# Set KEY_FILE in ~/.claudezrc
-echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
-```
+See [API Key Setup](#api-key-setup) below for all options.
 
 #### 5. Create your first zone
 
@@ -192,24 +167,7 @@ That's it! This single line automatically enables:
 
 #### 5. Store your Anthropic API key
 
-**Option 1: Environment variable (recommended)**
-```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-# Add to ~/.bashrc or ~/.zshrc to persist
-```
-
-**Option 2: Config file**
-```bash
-mkdir -p ~/.config/claudez
-echo "your-api-key-here" > ~/.config/claudez/anthropic_key
-chmod 600 ~/.config/claudez/anthropic_key
-```
-
-**Option 3: Custom location**
-```bash
-# Set KEY_FILE in ~/.claudezrc
-echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
-```
+See [API Key Setup](#api-key-setup) below for all options.
 
 #### 6. Create your first zone
 
@@ -233,6 +191,31 @@ Open `https://vanilla-myapp.yourdomain.com` to verify routing and SSL work.
 
 </details>
 
+## API Key Setup
+
+claudez needs your Anthropic API key to run Claude Code inside zones. Choose one method:
+
+**Option 1: Environment variable (recommended)**
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+# Add to ~/.bashrc or ~/.zshrc to persist
+```
+
+**Option 2: Config file (XDG standard location)**
+```bash
+mkdir -p ~/.config/claudez
+echo "sk-ant-..." > ~/.config/claudez/anthropic_key
+chmod 600 ~/.config/claudez/anthropic_key
+```
+
+**Option 3: Custom location**
+```bash
+# Set KEY_FILE in ~/.claudezrc to point anywhere
+echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
+```
+
+The key is read once during `claudez create` and injected into the zone's `.env` file. Priority: env var → config file → custom path.
+
 ## How it works
 
 1. You run `claudez create myapp` (or `cz create myapp`)
@@ -250,7 +233,40 @@ Open `https://vanilla-myapp.yourdomain.com` to verify routing and SSL work.
 5. You enter the zone and run `cc` to start Claude in a persistent tmux session
 6. Inner Claude finds a ready-to-use Next.js project in `/workspace/app/`
 
+## Quick Reference
+
+**Creating zones:**
+```bash
+claudez create myapp              # Standard (3GB memory)
+claudez create bigapp --large     # Large (5GB memory)
+claudez spawn myapp               # Create + enter in one command
+# Or use the short alias:
+cz create myapp
+```
+
+**Daily workflow:**
+```bash
+claudez enter myapp               # Attach to zone (on your machine)
+cc                                # Start/reattach Claude in tmux (inside container)
+claudez ls                        # List all zones (on your machine)
+claudez stop myapp                # Stop when idle (on your machine)
+```
+
+**What's `cc`?** It's a shorthand for `tmux new-session -A -s claude 'claude'` - starts Claude Code in a persistent tmux session that survives disconnects. Only works inside a zone.
+
+**Access your apps:**
+Each zone gets three URLs (use whichever you need):
+- **Production** (`myapp`) - port 3000: Built Next.js app (`pnpm build && pnpm start`)
+- **Development** (`dev-myapp`) - port 8000: Hot-reload dev server (`pnpm dev`)
+- **Vanilla** (`vanilla-myapp`) - port 9000: Static HTML test page (verify routing works)
+
+**Local mode**: `http://myapp.localhost:8080`, `http://dev-myapp.localhost:8080`, `http://vanilla-myapp.localhost:8080`
+
+**Remote mode**: `https://myapp.yourdomain.com`, `https://dev-myapp.yourdomain.com`, `https://vanilla-myapp.yourdomain.com`
+
 ## Available commands
+
+**All `claudez` commands run on your host machine** (outside containers). Commands like `cc` and `pm2` run inside zones after you `claudez enter`.
 
 ### Management
 - `claudez create <name> [--verify] [--large]` — Build and start a new zone
@@ -330,6 +346,8 @@ claudez create myproject --large
 ```
 
 ## Common commands inside the zone
+
+**Run these AFTER `claudez enter <name>`** (inside the container):
 
 - Dev Next.js:
   ```bash
