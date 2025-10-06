@@ -5,7 +5,7 @@ FROM node:${NODE_VERSION}
 # base deps (+ tmux so Claude sessions survive disconnects, procps for ps command)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tini wget curl ca-certificates git tmux openssh-client \
-      procps build-essential python3 \
+      procps build-essential python3 vim \
     && rm -rf /var/lib/apt/lists/*
 
 # global tools
