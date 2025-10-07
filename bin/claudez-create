@@ -136,6 +136,14 @@ if [ "$AGENT" = "claude" ] || [ "$AGENT" = "opencode" -a "$PROVIDER" = "anthropi
   # Anthropic key required
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     log "Using ANTHROPIC_API_KEY from environment"
+
+    # Validate key format from env var
+    if [[ ! "$ANTHROPIC_API_KEY" =~ ^sk-ant- ]]; then
+      die "ERROR: Invalid Anthropic API key format
+Key must start with 'sk-ant-' but found: ${ANTHROPIC_API_KEY:0:20}...
+
+Get a valid API key at: https://console.anthropic.com/"
+    fi
   else
     ANTHROPIC_API_KEY=""
     # Expand tilde in KEY_FILE
@@ -185,6 +193,14 @@ if [ "$AGENT" = "opencode" ]; then
       # Check for OpenRouter API key
       if [ -n "${OPENROUTER_API_KEY:-}" ]; then
         log "Using OPENROUTER_API_KEY from environment"
+
+        # Validate key format from env var
+        if [[ ! "$OPENROUTER_API_KEY" =~ ^sk-or-v1- ]]; then
+          die "ERROR: Invalid OpenRouter API key format
+Key must start with 'sk-or-v1-' but found: ${OPENROUTER_API_KEY:0:20}...
+
+Get a valid API key at: https://openrouter.ai/keys"
+        fi
       else
         OPENROUTER_API_KEY=""
         OPENROUTER_KEY_FILE_EXPANDED="${OPENROUTER_API_KEY_FILE/#\~/$HOME}"
