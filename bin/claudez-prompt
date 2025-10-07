@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+ZONE_NAME=""
+PROMPT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      cat <<'EOF'
+Usage: claudez prompt <zone> [options] "<prompt>"
+
+One-shot prompt execution in a zone using Claude Code or OpenCode.
+
+Arguments:
+  <zone>        Name of the zone to run in
+  <prompt>      The prompt to send (use quotes for multi-word)
+
+Examples:
+  # Simple one-shot prompt
+  claudez prompt myapp "What is 2+2?"
+
+  # Code explanation
+  claudez prompt myapp "Explain the code in app/page.tsx"
+
+  # Multi-line prompt
+  claudez prompt myapp "What files are in this project?
+  List them with brief descriptions."
+
+  # Using alias
+  cz p myapp "List all TODO comments"
+
+Notes:
+  - Zone must exist (works with both Claude Code and OpenCode zones)
+  - Detects which agent is available and uses it automatically
+  - For OpenCode: uses default model from /workspace/.opencode/opencode.json
+  - For Claude Code: uses configured Anthropic API key
+  - Output shows tool calls and final AI response
+
+Changing Models (OpenCode zones):
+  Edit the config inside your zone:
+    claudez shell myapp
+    vim /workspace/.opencode/opencode.json
+  Then change the "model" field to your preferred model key.
+EOF
+      exit 0
+      ;;
+    -*) die "Unknown flag: $1 (try --help)" ;;
+    *)
+      if [ -z "$ZONE_NAME" ]; then
+        ZONE_NAME="$1"
+      else
+        PROMPT="$PROMPT $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+PROMPT="${PROMPT# }"  # Strip leading space
+
+[ -z "$ZONE_NAME" ] && die "Usage: claudez prompt <zone> \"<prompt>\" (try --help)"
+[ -z "$PROMPT" ] && die "No prompt provided (try --help)"
+
+load_env
+
+CONTAINER_NAME="${ZONE_NAME}-app"
+
+# Check if container exists
+if ! docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  die "Zone '${ZONE_NAME}' does not exist. Create it with: claudez create ${ZONE_NAME} --oc"
+fi
+
+# Check if container is running
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  log "Starting zone '${ZONE_NAME}'..."
+  docker start "$CONTAINER_NAME" >/dev/null
+  sleep 2
+fi
+
+# Detect which agent is available
+HAS_OPENCODE=0
+HAS_CLAUDE=0
+
+if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v opencode' >/dev/null 2>&1; then
+  HAS_OPENCODE=1
+fi
+
+if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v claude' >/dev/null 2>&1; then
+  HAS_CLAUDE=1
+fi
+
+if [ $HAS_OPENCODE -eq 0 ] && [ $HAS_CLAUDE -eq 0 ]; then
+  die "Zone '${ZONE_NAME}' has neither Claude Code nor OpenCode installed."
+fi
+
+# Prefer OpenCode if both available, otherwise use what's there
+if [ $HAS_OPENCODE -eq 1 ]; then
+  AGENT="opencode"
+  CMD="cd /workspace && opencode run \"${PROMPT}\""
+  log "Running prompt with OpenCode in zone '${ZONE_NAME}'..."
+else
+  AGENT="claude"
+  CMD="cd /workspace && claude -p \"${PROMPT}\" --dangerously-skip-permissions"
+  log "Running prompt with Claude Code in zone '${ZONE_NAME}'..."
+fi
+
+echo ""
+
+# Execute (without -it if not a TTY)
+if [ -t 0 ]; then
+  docker exec -u appuser -it "$CONTAINER_NAME" bash -c "$CMD"
+else
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "$CMD"
+fi

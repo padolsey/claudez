@@ -6,17 +6,19 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 
 VERIFY=0
 NAME=""
+CREATE_FLAGS=()
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --verify) VERIFY=1; shift ;;
-    -*) die "Unknown flag: $1" ;;
+    --verify) VERIFY=1; CREATE_FLAGS+=("$1"); shift ;;
+    -*) CREATE_FLAGS+=("$1"); shift ;;
     *) NAME="$1"; shift ;;
   esac
 done
 
-[ -z "$NAME" ] && die "Usage: claudez spawn <name> [--verify]"
+[ -z "$NAME" ] && die "Usage: claudez spawn <name> [options]
+  Accepts all options from 'claudez create' (--oc, --oc-anthropic, --blank, --large, --verify, etc.)"
 
 load_env
 need docker
@@ -34,11 +36,7 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
 else
   # Container doesn't exist - create it
   log "Zone '${NAME}' doesn't exist, creating..."
-  if [ "$VERIFY" -eq 1 ]; then
-    "$SELF_DIR/claudez-create" "$NAME" --verify || die "Failed to create sandbox '${NAME}'"
-  else
-    "$SELF_DIR/claudez-create" "$NAME" || die "Failed to create sandbox '${NAME}'"
-  fi
+  "$SELF_DIR/claudez-create" "$NAME" "${CREATE_FLAGS[@]}" || die "Failed to create sandbox '${NAME}'"
 fi
 
 # Enter the zone

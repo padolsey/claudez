@@ -19,6 +19,12 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   die "Container '${CONTAINER_NAME}' exists but is not running. Start it with: claudez start ${NAME}"
 fi
 
-# Prefer launching/attaching Claude via the tmux-backed tclaude wrapper.
-# IMPORTANT: Run as appuser so Claude finds /home/appuser/.claude.json
-exec docker exec -it -u appuser "$CONTAINER_NAME" bash -lc 'command -v tclaude >/dev/null && tclaude || claude || bash'
+# Detect which agent this zone uses and launch the correct one
+# Check for OpenCode config to determine agent type
+if docker exec -u appuser "$CONTAINER_NAME" bash -lc '[ -f /workspace/.opencode/opencode.json ]' 2>/dev/null; then
+  # OpenCode zone - launch opencode
+  exec docker exec -it -u appuser "$CONTAINER_NAME" bash -lc 'command -v opencode >/dev/null && opencode || bash'
+else
+  # Claude Code zone - launch tclaude (tmux-backed)
+  exec docker exec -it -u appuser "$CONTAINER_NAME" bash -lc 'command -v tclaude >/dev/null && tclaude || claude || bash'
+fi

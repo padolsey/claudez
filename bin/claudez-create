@@ -5,27 +5,73 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$ROOT_DIR/lib/common.sh"
 . "$ROOT_DIR/lib/docker.sh"
 . "$ROOT_DIR/lib/render.sh"
+. "$ROOT_DIR/lib/interactive.sh"
 
 VERIFY=0
 NAME=""
 SIZE_PROFILE=""
+AGENT="claude"
+PROVIDER=""
+INTERACTIVE=1
+BLANK=0
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --verify) VERIFY=1; shift ;;
     --large) SIZE_PROFILE="large"; shift ;;
+    --blank) BLANK=1; shift ;;
+    --oc) AGENT="opencode"; PROVIDER="openrouter"; shift ;;
+    --oc-anthropic) AGENT="opencode"; PROVIDER="anthropic"; shift ;;
+    --oc-openai) AGENT="opencode"; PROVIDER="openai"; shift ;;
+    --oc-custom) AGENT="opencode"; PROVIDER="custom"; shift ;;
+    --agent) AGENT="$2"; shift 2 ;;
+    --provider) PROVIDER="$2"; shift 2 ;;
+    --no-interactive) INTERACTIVE=0; shift ;;
     --help)
       cat <<'EOF'
-Usage: claudez create <name> [--verify] [--large]
+Usage: claudez create <name> [options]
+
+Quick Start:
+  cz myapp              Default: Claude Code + Anthropic
+  cz myapp --oc         OpenCode + OpenRouter (interactive setup)
 
 Options:
-  --verify  Wait for Traefik routing and verify connectivity
-  --large   Use 5GB memory limit for heavy builds (default: 3GB)
+  --verify              Verify Traefik routing after creation
+  --large               Use 5GB memory (default: 3GB)
+  --blank               Ultra-fast: no Next.js, no servers, just agent + workspace
+  --no-interactive      Skip interactive prompts (use env vars only)
+
+Agent Selection:
+  --oc                  OpenCode with OpenRouter (shorthand)
+  --oc-anthropic        OpenCode with Anthropic
+  --oc-openai           OpenCode with OpenAI
+  --oc-custom           OpenCode with custom provider (interactive)
+  --agent <name>        Explicit agent: 'claude' or 'opencode'
+  --provider <name>     Provider: 'openrouter', 'anthropic', 'openai', 'custom'
 
 Examples:
-  claudez create myapp              # Standard 3GB limit
-  claudez create bigapp --large     # 5GB for complex Next.js builds
+  # Default Claude Code experience
+  cz myapp
+
+  # OpenCode with free models (will prompt for key if needed)
+  cz myapp --oc
+
+  # OpenCode using your Anthropic key
+  cz myapp --oc-anthropic
+
+  # OpenCode using your OpenAI key
+  cz myapp --oc-openai
+
+  # Non-interactive (CI/automation)
+  export OPENROUTER_API_KEY="sk-or-v1-..."
+  cz myapp --oc --no-interactive
+
+API Keys:
+  Keys can be set via:
+    • Environment variables: ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY
+    • Config files: ~/.config/claudez/anthropic_key, openrouter_key
+    • Interactive prompts (default when missing)
 EOF
       exit 0
       ;;
@@ -80,22 +126,39 @@ mkdir -p "$APP_DIR" "$APP_DIR/workspace"
 
 ensure_network "$TRAEFIK_NETWORK"
 
-# Anthropic key (host-side) - REQUIRED
-# Priority: 1) $ANTHROPIC_API_KEY env var, 2) KEY_FILE
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  log "Using ANTHROPIC_API_KEY from environment"
-else
-  ANTHROPIC_API_KEY=""
-  # Expand tilde in KEY_FILE
-  KEY_FILE_EXPANDED="${KEY_FILE/#\~/$HOME}"
-  if [ -f "$KEY_FILE_EXPANDED" ]; then
-    ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE_EXPANDED")"
-    [ -z "$ANTHROPIC_API_KEY" ] && die "ERROR: $KEY_FILE_EXPANDED exists but is empty.
+# Set default provider based on agent choice
+if [ "$AGENT" = "opencode" ] && [ -z "$PROVIDER" ]; then
+  PROVIDER="openrouter"
+fi
+
+# API Key validation and setup
+if [ "$AGENT" = "claude" ] || [ "$AGENT" = "opencode" -a "$PROVIDER" = "anthropic" ]; then
+  # Anthropic key required
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    log "Using ANTHROPIC_API_KEY from environment"
+  else
+    ANTHROPIC_API_KEY=""
+    # Expand tilde in KEY_FILE
+    KEY_FILE_EXPANDED="${KEY_FILE/#\~/$HOME}"
+    if [ -f "$KEY_FILE_EXPANDED" ]; then
+      ANTHROPIC_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$KEY_FILE_EXPANDED")"
+      [ -z "$ANTHROPIC_API_KEY" ] && die "ERROR: $KEY_FILE_EXPANDED exists but is empty.
 
 Please add your Anthropic API key:
   echo 'sk-ant-...' > $KEY_FILE_EXPANDED"
-  else
-    die "ERROR: No Anthropic API key found.
+
+      # Validate key format (must start with sk-ant-)
+      if [[ ! "$ANTHROPIC_API_KEY" =~ ^sk-ant- ]]; then
+        die "ERROR: Invalid Anthropic API key format in $KEY_FILE_EXPANDED
+Key must start with 'sk-ant-' but found: ${ANTHROPIC_API_KEY:0:20}...
+
+Please update your key file:
+  echo 'sk-ant-...' > $KEY_FILE_EXPANDED
+
+Get a valid API key at: https://console.anthropic.com/"
+      fi
+    else
+      die "ERROR: No Anthropic API key found.
 
 Please set your API key using one of these methods:
 
@@ -111,12 +174,114 @@ Please set your API key using one of these methods:
      echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
 
 Get your API key at: https://console.anthropic.com/"
+    fi
   fi
+fi
+
+# OpenCode-specific setup
+if [ "$AGENT" = "opencode" ]; then
+  case "$PROVIDER" in
+    openrouter)
+      # Check for OpenRouter API key
+      if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+        log "Using OPENROUTER_API_KEY from environment"
+      else
+        OPENROUTER_API_KEY=""
+        OPENROUTER_KEY_FILE_EXPANDED="${OPENROUTER_API_KEY_FILE/#\~/$HOME}"
+        if [ -f "$OPENROUTER_KEY_FILE_EXPANDED" ]; then
+          OPENROUTER_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$OPENROUTER_KEY_FILE_EXPANDED")"
+
+          # Validate key format (must start with sk-or-v1-)
+          if [ -n "$OPENROUTER_API_KEY" ] && [[ ! "$OPENROUTER_API_KEY" =~ ^sk-or-v1- ]]; then
+            die "ERROR: Invalid OpenRouter API key format in $OPENROUTER_KEY_FILE_EXPANDED
+Key must start with 'sk-or-v1-' but found: ${OPENROUTER_API_KEY:0:20}...
+
+Please update your key file with a valid key:
+  echo 'sk-or-v1-...' > $OPENROUTER_KEY_FILE_EXPANDED
+
+Get a valid API key at: https://openrouter.ai/keys"
+          fi
+        fi
+
+        # Interactive prompt if still no key
+        if [ -z "$OPENROUTER_API_KEY" ] && [ "$INTERACTIVE" -eq 1 ]; then
+          interactive_openrouter_setup
+        elif [ -z "$OPENROUTER_API_KEY" ]; then
+          die "ERROR: No OpenRouter API key found.
+
+Please set your API key:
+  export OPENROUTER_API_KEY='sk-or-v1-...'
+  # OR
+  echo 'sk-or-v1-...' > ~/.config/claudez/openrouter_key
+
+Get your API key at: https://openrouter.ai/keys"
+        fi
+      fi
+      ;;
+
+    custom)
+      # Interactive setup for custom provider
+      if [ "$INTERACTIVE" -eq 1 ]; then
+        interactive_custom_provider_setup
+      else
+        die "Custom provider requires interactive setup or pre-configured environment (CUSTOM_API_KEY, CUSTOM_BASE_URL)"
+      fi
+      ;;
+
+    openai)
+      # Check for OpenAI API key
+      if [ -n "${OPENAI_API_KEY:-}" ]; then
+        log "Using OPENAI_API_KEY from environment"
+      else
+        OPENAI_API_KEY=""
+        OPENAI_KEY_FILE_EXPANDED="${OPENAI_API_KEY_FILE/#\~/$HOME}"
+        if [ -f "$OPENAI_KEY_FILE_EXPANDED" ]; then
+          OPENAI_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$OPENAI_KEY_FILE_EXPANDED")"
+
+          # Validate key format (must start with sk-)
+          if [ -n "$OPENAI_API_KEY" ] && [[ ! "$OPENAI_API_KEY" =~ ^sk- ]]; then
+            die "ERROR: Invalid OpenAI API key format in $OPENAI_KEY_FILE_EXPANDED
+Key must start with 'sk-' but found: ${OPENAI_API_KEY:0:20}...
+
+Please update your key file with a valid key:
+  echo 'sk-proj-...' > $OPENAI_KEY_FILE_EXPANDED
+
+Get a valid API key at: https://platform.openai.com/api-keys"
+          fi
+        fi
+
+        # No key found
+        if [ -z "$OPENAI_API_KEY" ]; then
+          die "ERROR: No OpenAI API key found.
+
+Please set your API key:
+  export OPENAI_API_KEY='sk-proj-...'
+  # OR
+  echo 'sk-proj-...' > ~/.config/claudez/openai_key
+
+Get your API key at: https://platform.openai.com/api-keys"
+        fi
+      fi
+
+      # Validate key format from env var
+      if [[ ! "$OPENAI_API_KEY" =~ ^sk- ]]; then
+        die "ERROR: Invalid OpenAI API key format
+Key must start with 'sk-' but found: ${OPENAI_API_KEY:0:20}...
+
+Get a valid API key at: https://platform.openai.com/api-keys"
+      fi
+      ;;
+
+    anthropic)
+      # Already validated above
+      log "Using OpenCode with Anthropic provider"
+      ;;
+  esac
 fi
 
 # .env inside app dir (container env)
 cat > "${APP_DIR}/.env" <<EOF
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 CLAUDE_HOME=/home/appuser
 PORT=3000
 HOST=0.0.0.0
@@ -125,6 +290,24 @@ WATCHPACK_POLLING=true
 NEXT_TELEMETRY_DISABLED=1
 NODE_OPTIONS=--max-old-space-size=3584
 EOF
+
+# Add OpenCode-specific environment variables
+if [ "$AGENT" = "opencode" ]; then
+  case "$PROVIDER" in
+    openrouter)
+      echo "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}" >> "${APP_DIR}/.env"
+      ;;
+    openai)
+      echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> "${APP_DIR}/.env"
+      ;;
+    custom)
+      echo "CUSTOM_API_KEY=${CUSTOM_API_KEY}" >> "${APP_DIR}/.env"
+      echo "CUSTOM_BASE_URL=${CUSTOM_BASE_URL}" >> "${APP_DIR}/.env"
+      echo "CUSTOM_PROVIDER_NAME=${CUSTOM_PROVIDER_NAME}" >> "${APP_DIR}/.env"
+      ;;
+  esac
+fi
+
 chmod 600 "${APP_DIR}/.env"
 
 # Templates
@@ -132,16 +315,43 @@ NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/vanilla.inde
 install -d "${APP_DIR}/workspace/vanilla"
 mv -f "${APP_DIR}/workspace/vanilla.index.html" "${APP_DIR}/workspace/vanilla/index.html"
 
-# CLAUDE.md (project guidance)
+# CLAUDE.md (project guidance for Claude Code)
 mkdir -p "${APP_DIR}/workspace"
-CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" render "$ROOT_DIR/templates/CLAUDE.md.tmpl" "${APP_DIR}/workspace/CLAUDE.md" >/dev/null
+PROTOCOL="$(get_protocol)"
+CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" PROTOCOL="$PROTOCOL" render "$ROOT_DIR/templates/CLAUDE.md.tmpl" "${APP_DIR}/workspace/CLAUDE.md" >/dev/null
+
+# AGENTS.md (project guidance for OpenCode)
+CLAUDE_NAME="$NAME" DOMAIN_BASE="$DOMAIN_BASE" PROTOCOL="$PROTOCOL" render "$ROOT_DIR/templates/AGENTS.md.tmpl" "${APP_DIR}/workspace/AGENTS.md" >/dev/null
 
 # Claude permissions (allow everything for inner Claude)
 mkdir -p "${APP_DIR}/workspace/.claude"
 cp "$ROOT_DIR/templates/settings.local.json.tmpl" "${APP_DIR}/workspace/.claude/settings.local.json"
 
-# Dockerfile & compose
-NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
+# OpenCode configuration
+if [ "$AGENT" = "opencode" ]; then
+  mkdir -p "${APP_DIR}/workspace/.opencode"
+
+  # Render appropriate config template
+  if [ -f "$ROOT_DIR/templates/opencode-config.${PROVIDER}.json.tmpl" ]; then
+    CUSTOM_PROVIDER_NAME="${CUSTOM_PROVIDER_NAME:-}" \
+    CUSTOM_BASE_URL="${CUSTOM_BASE_URL:-}" \
+    render "$ROOT_DIR/templates/opencode-config.${PROVIDER}.json.tmpl" \
+           "${APP_DIR}/workspace/.opencode/opencode.json" >/dev/null
+    log "OpenCode configured with provider: ${PROVIDER}"
+  else
+    log "WARNING: No config template for provider: ${PROVIDER}"
+  fi
+
+  chown -R 10001:10001 "${APP_DIR}/workspace/.opencode" || true
+fi
+
+# Dockerfile & compose (use blank template if --blank specified)
+if [ "$BLANK" -eq 1 ]; then
+  NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.blank.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
+  log "Using blank template (ultra-fast: no Next.js, no servers)"
+else
+  NODE_VERSION="${NODE_VERSION}" render "$ROOT_DIR/templates/Dockerfile.tmpl" "${APP_DIR}/Dockerfile" >/dev/null
+fi
 
 # Set traefik entrypoint and domain (without port for Host rules)
 export TRAEFIK_ENTRYPOINT="$(get_traefik_entrypoint)"
@@ -176,15 +386,21 @@ log "Building and starting '${NAME}'…"
 
 wait_running "$CONTAINER_NAME"
 
-# Next.js is initialized automatically by container startup script
-log "Waiting for Next.js initialization to complete…"
-for i in $(seq 1 30); do
-  if docker exec -u appuser "$CONTAINER_NAME" bash -lc '[ -f /workspace/app/package.json ]' 2>/dev/null; then
-    log "Next.js project initialized."
-    break
-  fi
-  sleep 1
-done
+# Skip Next.js init for blank mode
+if [ "$BLANK" -eq 0 ]; then
+  # Next.js is initialized automatically by container startup script
+  log "Waiting for Next.js initialization to complete…"
+  for i in $(seq 1 30); do
+    if docker exec -u appuser "$CONTAINER_NAME" bash -lc '[ -f /workspace/app/package.json ]' 2>/dev/null; then
+      log "Next.js project initialized."
+      break
+    fi
+    sleep 1
+  done
+else
+  log "Blank mode: skipping Next.js initialization (instant ready!)"
+  sleep 1  # Just wait for container to be fully ready
+fi
 
 # Create .gitignore for secrets protection
 log "Creating .gitignore in workspace…"
@@ -266,7 +482,25 @@ fi
 
 PROTOCOL="$(get_protocol)"
 
-cat <<EOF
+# Determine agent display name and command
+if [ "$AGENT" = "opencode" ]; then
+  AGENT_DISPLAY="OpenCode (${PROVIDER})"
+  AGENT_CMD="opencode"
+  MODELS=""
+  if [ "$PROVIDER" = "openrouter" ]; then
+    MODELS="gemini-flash-free claude-sonnet gpt4-turbo deepseek-chat"
+  fi
+else
+  AGENT_DISPLAY="Claude Code"
+  AGENT_CMD="tclaude"
+  MODELS=""
+fi
+
+# Use fancy box if OpenCode
+if [ "$AGENT" = "opencode" ]; then
+  show_success_box "$NAME" "$AGENT_DISPLAY" "$PROTOCOL" "$DOMAIN_BASE" "$MODELS"
+else
+  cat <<EOF
 
 ✅ Sandbox ready
    PROD:    ${PROTOCOL}://${NAME}.${DOMAIN_BASE}        (:3000 expected)
@@ -281,3 +515,4 @@ Enter and start Claude:
 
 Verify routing: claudez status ${NAME}
 EOF
+fi

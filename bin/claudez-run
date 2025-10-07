@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
+. "$ROOT_DIR/lib/common.sh"
+
+ZONE_NAME=""
+PROMPT=""
+MODEL=""
+PROVIDER="openrouter"
+AGENT="opencode"
+CLEANUP=0
+VERIFY=0
+BLANK=1  # Use blank mode by default for speed
+ISOLATE=0  # Use persistent quickrun zone by default
+WIPE_WORKSPACE=1  # Clear workspace between runs by default
+
+show_help() {
+  cat <<'EOF'
+Usage: claudez run [options] "<prompt>"
+
+Ultra-fast one-shot: create zone, run prompt, optionally cleanup.
+Perfect for quick AI queries without manual zone management.
+
+Options:
+  -z, --zone <name>      Zone name (default: 'quickrun-default')
+  -m, --model <id>       Model to use (e.g., "google/gemini-2.5-flash")
+  -a, --agent <name>     Agent: 'claude' or 'opencode' (default: opencode)
+  -p, --provider <name>  Provider: openrouter, anthropic, openai, custom (default: openrouter)
+  --isolate              Create temporary zone (like old behavior)
+  --cleanup              Delete zone after running (implies --isolate)
+  --persist-workspace    Don't wipe /workspace between runs
+  --no-blank             Use full Next.js environment (slow)
+  --verify               Verify Traefik routing
+
+Examples:
+  # Ultra-fast: reuses 'quickrun-default' zone automatically
+  cz run "What is 2+2?"           # ~40s first time, ~3s after!
+  cz run "Explain Docker"         # ~3s (reuses same zone)
+
+  # Use Claude Code instead
+  cz run -a claude "Explain async/await"
+
+  # Custom model with OpenCode
+  cz run -m "google/gemini-2.5-flash" "Explain Docker"
+
+  # Use OpenAI provider
+  cz run -p openai "What is recursion?"
+
+  # Isolated ephemeral run (old behavior)
+  cz run --isolate "One-off question"
+  cz run --cleanup "Create + run + destroy"  # Same as --isolate
+
+  # Named zone for specific project context
+  cz run -z myapp "List files in this project"
+  cz run -z myapp "Explain app/page.tsx"  # Keeps workspace
+
+  # Persist workspace state between runs
+  cz run --persist-workspace "Create a file"
+  cz run --persist-workspace "Read that file"
+
+  # Piped input
+  cat README.md | cz run "Summarize this"
+
+Environment:
+  OPENROUTER_API_KEY    Required for OpenRouter
+  ANTHROPIC_API_KEY     Required for Anthropic
+  OPENAI_API_KEY        Required for OpenAI
+
+Performance:
+  By default, reuses a persistent 'quickrun-default' zone:
+    • First run: ~40s (build container)
+    • All subsequent runs: ~3s (pure API time!)
+
+  Workspace is wiped between runs for isolation, but container
+  stays warm. Use --persist-workspace to keep files between runs,
+  or -z <name> for project-specific persistent zones.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -z|--zone) ZONE_NAME="$2"; shift 2 ;;
+    -m|--model) MODEL="$2"; shift 2 ;;
+    -a|--agent) AGENT="$2"; shift 2 ;;
+    -p|--provider) PROVIDER="$2"; shift 2 ;;
+    --isolate) ISOLATE=1; shift ;;
+    --cleanup) CLEANUP=1; ISOLATE=1; shift ;;
+    --persist-workspace) WIPE_WORKSPACE=0; shift ;;
+    --no-blank) BLANK=0; shift ;;
+    --verify) VERIFY=1; shift ;;
+    --help|-h) show_help; exit 0 ;;
+    -*) die "Unknown flag: $1 (try --help)" ;;
+    *) PROMPT="$PROMPT $1"; shift ;;
+  esac
+done
+
+PROMPT="${PROMPT# }"
+
+# Read from stdin if available
+if [ ! -t 0 ]; then
+  STDIN_DATA="$(cat)"
+  if [ -n "$STDIN_DATA" ]; then
+    PROMPT="$PROMPT
+
+Input data:
+$STDIN_DATA"
+  fi
+fi
+
+[ -z "$PROMPT" ] && die "No prompt provided (try --help)"
+
+load_env
+
+# Generate zone name based on mode
+if [ -z "$ZONE_NAME" ]; then
+  if [ "$ISOLATE" -eq 1 ]; then
+    ZONE_NAME="tmp-$(date +%s)-$$"
+    log "Generated ephemeral zone: ${ZONE_NAME}"
+  else
+    ZONE_NAME="quickrun-default"
+    log "Using persistent quickrun zone: ${ZONE_NAME}"
+  fi
+fi
+
+CONTAINER_NAME="${ZONE_NAME}-app"
+
+# Check if zone exists
+ZONE_EXISTS=0
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  ZONE_EXISTS=1
+  log "Using existing zone '${ZONE_NAME}'"
+
+  # Start if stopped
+  if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    log "Starting zone..."
+    docker start "$CONTAINER_NAME" >/dev/null
+    sleep 2
+  fi
+else
+  log "Creating zone '${ZONE_NAME}'..."
+
+  # Build create flags
+  CREATE_FLAGS="--no-interactive"
+
+  # Agent selection
+  if [ "$AGENT" = "opencode" ]; then
+    case "$PROVIDER" in
+      openrouter) CREATE_FLAGS="$CREATE_FLAGS --oc" ;;
+      anthropic) CREATE_FLAGS="$CREATE_FLAGS --oc-anthropic" ;;
+      openai) CREATE_FLAGS="$CREATE_FLAGS --oc-openai" ;;
+      custom) CREATE_FLAGS="$CREATE_FLAGS --oc-custom" ;;
+    esac
+  fi
+  # Claude Code doesn't need special flags (it's the default)
+
+  [ "$VERIFY" -eq 1 ] && CREATE_FLAGS="$CREATE_FLAGS --verify"
+  [ "$BLANK" -eq 1 ] && CREATE_FLAGS="$CREATE_FLAGS --blank"
+
+  # Create zone
+  "$SELF_DIR/claudez-create" "$ZONE_NAME" $CREATE_FLAGS >/dev/null 2>&1 || {
+    die "Failed to create zone. Check logs with: docker logs ${CONTAINER_NAME}"
+  }
+
+  log "Zone created successfully"
+fi
+
+# Wipe workspace if requested (for isolation between runs)
+if [ "$ZONE_EXISTS" -eq 1 ] && [ "$WIPE_WORKSPACE" -eq 1 ]; then
+  log "Wiping workspace for clean run..."
+  # Wipe everything except .claude, .opencode, and .gitignore (preserve agent configs)
+  docker exec -u root "$CONTAINER_NAME" bash -c '
+    cd /workspace &&
+    find . -mindepth 1 -maxdepth 1 ! -name ".claude" ! -name ".opencode" ! -name ".gitignore" ! -name ".claude-logs" -exec rm -rf {} + 2>/dev/null || true
+  ' >/dev/null 2>&1
+fi
+
+# If custom model specified, update config
+if [ -n "$MODEL" ]; then
+  log "Configuring custom model: ${MODEL}"
+
+  # Extract provider and model ID
+  if [[ "$MODEL" == *"/"* ]]; then
+    MODEL_PROVIDER="${MODEL%%/*}"
+    MODEL_ID="${MODEL}"
+  else
+    MODEL_PROVIDER="$PROVIDER"
+    MODEL_ID="$MODEL"
+  fi
+
+  # Update OpenCode config
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "cat > /workspace/.opencode/opencode.json <<'EOFCONFIG'
+{
+  \"\$schema\": \"https://opencode.ai/config.json\",
+  \"provider\": {
+    \"$PROVIDER\": {
+      \"options\": {
+        \"apiKey\": \"{env:OPENROUTER_API_KEY}\",
+        \"baseURL\": \"https://openrouter.ai/api/v1\"
+      },
+      \"models\": {
+        \"custom-model\": {
+          \"name\": \"Custom Model\",
+          \"id\": \"$MODEL_ID\"
+        }
+      }
+    }
+  },
+  \"model\": \"$PROVIDER/custom-model\",
+  \"permission\": {
+    \"edit\": \"allow\",
+    \"bash\": \"allow\",
+    \"webfetch\": \"allow\"
+  },
+  \"share\": \"disabled\"
+}
+EOFCONFIG" || {
+    log "WARNING: Failed to update model config"
+  }
+fi
+
+# Run prompt with selected agent
+log "Sending prompt with ${AGENT}..."
+echo ""
+
+if [ "$AGENT" = "opencode" ]; then
+  # OpenCode run (permissions controlled via config file - already set to "allow" in templates)
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "cd /workspace && opencode run \"${PROMPT}\"" || {
+    EXIT_CODE=$?
+    [ "$CLEANUP" -eq 1 ] && "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
+    exit $EXIT_CODE
+  }
+else
+  # Claude Code run with full permissions for quick execution
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "cd /workspace && claude -p \"${PROMPT}\" --dangerously-skip-permissions" || {
+    EXIT_CODE=$?
+    [ "$CLEANUP" -eq 1 ] && "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
+    exit $EXIT_CODE
+  }
+fi
+
+# Cleanup if requested
+if [ "$CLEANUP" -eq 1 ]; then
+  echo ""
+  log "Cleaning up zone '${ZONE_NAME}'..."
+  "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
+  log "✅ Done"
+fi

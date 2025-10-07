@@ -1,0 +1,76 @@
+# syntax=docker/dockerfile:1
+# Ultra-minimal Dockerfile for fast one-shot prompts
+# No Next.js, no pnpm scaffolding, just the agent + workspace
+ARG NODE_VERSION=${NODE_VERSION}
+FROM node:${NODE_VERSION}-slim
+
+# Minimal deps (tmux for sessions, vim for editing)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      tini git vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install both agents (super fast - no other deps)
+RUN npm install -g @anthropic-ai/claude-code opencode-ai
+
+# Startup script (minimal - no pm2, no http-server, no Next.js init)
+RUN cat >/usr/local/bin/startup.sh <<'EOS'
+#!/usr/bin/env bash
+set -e
+
+# Pre-seed Claude onboarding
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  HOME="/home/appuser"
+  mkdir -p "${HOME}"
+  KEY_TAIL="$(printf "%s" "$ANTHROPIC_API_KEY" | tail -c 20 2>/dev/null || echo "")"
+  TARGET_JSON="${HOME}/.claude.json"
+  mkdir -p "$(dirname "$TARGET_JSON")"
+  cat > "${TARGET_JSON}" <<JSON
+{
+  "customApiKeyResponses": { "approved": ["${KEY_TAIL}"], "rejected": [] },
+  "shiftEnterKeyBindingInstalled": true,
+  "theme": "dark",
+  "hasCompletedOnboarding": true
+}
+JSON
+  chown appuser:appuser "${TARGET_JSON}"
+  chmod 600 "${TARGET_JSON}"
+
+  # API key file
+  mkdir -p /home/appuser/.config
+  echo "$ANTHROPIC_API_KEY" > /home/appuser/.config/anthropic_key
+  chown appuser:appuser /home/appuser/.config/anthropic_key
+  chmod 600 /home/appuser/.config/anthropic_key
+fi
+
+# Fix workspace ownership
+chown -R appuser:appuser /workspace 2>/dev/null || true
+
+# tclaude wrapper
+cat >/usr/local/bin/tclaude <<'SH'
+#!/usr/bin/env bash
+cd /workspace
+exec claude "$@"
+SH
+chmod +x /usr/local/bin/tclaude
+
+exec su -m appuser -c 'cd /workspace && sleep infinity'
+EOS
+RUN chmod +x /usr/local/bin/startup.sh
+
+# Runtime user
+RUN useradd -m -u 10001 appuser && \
+    mkdir -p /home/appuser/.config && \
+    chown -R appuser:appuser /home/appuser/.config
+
+WORKDIR /workspace
+
+# Minimal claude config
+RUN mkdir -p /workspace/.claude && \
+    chown -R appuser:appuser /workspace/.claude
+
+USER appuser
+RUN [ -e /home/appuser/.claude.json ] || ln -s /workspace/.claude/claude.json /home/appuser/.claude.json
+
+USER root
+ENTRYPOINT ["/usr/bin/tini","--"]
+CMD ["bash","-lc","/usr/local/bin/startup.sh"]

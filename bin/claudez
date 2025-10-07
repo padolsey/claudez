@@ -14,6 +14,7 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 
 SUB="${1:-}"; shift || true
 case "$SUB" in
+  run|r)   exec "$SELF_DIR/claudez-run" "$@" ;;
   create)  exec "$SELF_DIR/claudez-create" "$@" ;;
   spawn)   exec "$SELF_DIR/claudez-spawn" "$@" ;;
   enter)   exec "$SELF_DIR/claudez-enter" "$@" ;;
@@ -28,16 +29,19 @@ case "$SUB" in
   stop)    exec "$SELF_DIR/claudez-stop" "$@" ;;
   start)   exec "$SELF_DIR/claudez-start" "$@" ;;
   exec)    exec "$SELF_DIR/claudez-exec" "$@" ;;
+  prompt|p) exec "$SELF_DIR/claudez-prompt" "$@" ;;
   setup-status-page) exec "$SELF_DIR/claudez-setup-status-page" "$@" ;;
   protect-services) exec "$SELF_DIR/claudez-protect-services" "$@" ;;
   ""|--help|-h)
     cat <<'EOF'
 Usage:
   claudez <name>            # shorthand for 'claudez spawn <name>'
+  claudez run "<prompt>"    # ultra-fast: create zone, run, optionally cleanup (alias: r)
   claudez create <name> [--verify] # build + up + bootstrap (--verify checks Traefik routing)
   claudez spawn  <name> [--verify] # create + enter in one command
   claudez enter  <name>         # open shell & start/attach Claude (tmux)
   claudez shell  <name>         # open normal shell without starting Claude
+  claudez prompt <name> "<text>" # one-shot prompt with OpenCode (alias: p)
   claudez reset  <name>         # remove container/image/app dir then recreate
   claudez rename <old> <new>    # rename a zone (stops, renames, recreates)
   claudez status <name>         # health checks (vanilla/Traefik)
@@ -52,11 +56,16 @@ Usage:
   claudez protect-services # protect Docker/Traefik/SSH from OOM killer
 
 Alias: cz (short alias for claudez)
+
+Quick Start:
+  export OPENROUTER_API_KEY="sk-or-v1-..."
+  cz run "What is 2+2?"                    # Instant answer!
+  cz run -m "google/gemini-2.5-flash" "Explain Docker"
 EOF
     ;;
   *)
     # Default: treat as zone name and spawn it, but error on reserved names
-    RESERVED_NAMES="create spawn enter shell reset rename status ls list rm remove delete logs restart stop start exec setup-status-page protect-services help"
+    RESERVED_NAMES="run r create spawn enter shell prompt p reset rename status ls list rm remove delete logs restart stop start exec setup-status-page protect-services help"
     if echo "$RESERVED_NAMES" | grep -qw "$SUB"; then
       die "Cannot use reserved command name '$SUB' as a zone name. Did you mean: claudez $SUB <name>?"
     fi

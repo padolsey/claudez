@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       procps build-essential python3 vim \
     && rm -rf /var/lib/apt/lists/*
 
-# global tools
-RUN npm install -g @anthropic-ai/claude-code pm2 http-server pnpm && \
+# global tools (including both Claude Code and OpenCode)
+RUN npm install -g @anthropic-ai/claude-code opencode-ai pm2 http-server pnpm && \
     pm2 install pm2-logrotate && \
     pm2 set pm2-logrotate:max_size 10M && \
     pm2 set pm2-logrotate:retain 5 && \

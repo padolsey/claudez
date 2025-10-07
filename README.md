@@ -1,8 +1,10 @@
 # claudez (Claude Zones)
 
-A tool for spinning up isolated, persistent **Claude Code** development environments on your local machine or remote server.
+A tool for spinning up isolated, persistent **AI coding agent** environments on your local machine or remote server.
 
-**What's a "zone"?** A zone is an isolated Docker container running Claude Code with a pre-scaffolded Next.js 15 project, dedicated resources (3-5GB RAM), and automatic subdomain routing. Think of it as a disposable workspace where Claude can build without touching your main system.
+**What's a "zone"?** A zone is an isolated Docker container running your choice of AI agent (Claude Code or OpenCode) with optional pre-scaffolded Next.js 15 project, dedicated resources (3-5GB RAM), and automatic subdomain routing. Think of it as a disposable workspace where AI agents can build without touching your main system.
+
+**New!** Now supports both **Claude Code** (Anthropic's official agent) and **OpenCode** (multi-provider agent supporting 75+ models via OpenRouter, including free options).
 
 ## Why this exists
 
@@ -26,11 +28,13 @@ Think of it as "containerized rapid prototyping" - spin up a zone, let Claude bu
 
 1. **Docker** installed and running
 2. **Traefik** reverse proxy (see setup below)
-3. **Anthropic API key** ([get one here](https://console.anthropic.com/))
+3. **API Key** - Choose based on your agent:
+   - **Claude Code**: Anthropic API key ([get one here](https://console.anthropic.com/))
+   - **OpenCode**: OpenRouter API key ([free tier available](https://openrouter.ai/keys)) or Anthropic key
 
 ## Quick Start
 
-**TL;DR for local development:**
+**TL;DR for local development (Claude Code):**
 ```bash
 # 1. Install Docker, then:
 git clone https://github.com/padolsey/claudez.git && cd claudez
@@ -44,6 +48,18 @@ echo "sk-ant-..." > ~/.config/claudez/anthropic_key  # Option B: file
 # 3. Create and enter a zone:
 claudez myapp  # Creates and enters the zone (shorthand for 'spawn')
 tclaude        # Starts Claude inside the zone (persistent tmux session)
+```
+
+**TL;DR for OpenCode (free models!):**
+```bash
+# After setup above:
+export OPENROUTER_API_KEY="sk-or-v1-..."    # Get free key at openrouter.ai/keys
+cz myapp --oc                                # Creates OpenCode zone
+opencode                                     # Starts OpenCode (inside zone)
+
+# Or instant one-shot answers:
+cz run "What is 2+2?"                        # Ultra-fast!
+cz run -m "google/gemini-2.5-flash" "Explain Docker"
 ```
 
 ### Detailed Setup Instructions
@@ -193,8 +209,9 @@ Open `https://vanilla-myapp.yourdomain.com` to verify routing and SSL work.
 
 ## API Key Setup
 
-claudez needs your Anthropic API key to run Claude Code inside zones. Choose one method:
+claudez supports multiple API keys depending on which agent you choose:
 
+### Claude Code (Anthropic)
 **Option 1: Environment variable (recommended)**
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -214,7 +231,33 @@ chmod 600 ~/.config/claudez/anthropic_key
 echo 'KEY_FILE=/path/to/your/key' >> ~/.claudezrc
 ```
 
-The key is read once during `claudez create` and injected into the zone's `.env` file. Priority: env var → config file → custom path.
+### OpenCode (OpenRouter, Anthropic, OpenAI, or custom)
+
+**OpenRouter (75+ models, free tier available):**
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
+# OR save to file:
+echo "sk-or-v1-..." > ~/.config/claudez/openrouter_key
+```
+
+**Anthropic via OpenCode:**
+```bash
+cz myapp --oc-anthropic  # Uses your existing ANTHROPIC_API_KEY
+```
+
+**OpenAI via OpenCode:**
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+cz myapp --oc-openai  # Uses GPT-4o, GPT-4o-mini, o1, etc.
+```
+
+**Key Validation:**
+Keys are validated **before** creating the zone:
+- **Format check**: Anthropic keys must start with `sk-ant-`, OpenRouter keys with `sk-or-v1-`, OpenAI keys with `sk-`
+- **Source priority**: env var → config file → custom path → interactive prompt
+- **Early failure**: Invalid keys fail immediately with clear error messages
+
+This ensures you don't waste time building containers only to discover authentication issues when the agent starts.
 
 ## How it works
 
@@ -237,12 +280,44 @@ The key is read once during `claudez create` and injected into the zone's `.env`
 
 **Creating zones:**
 ```bash
+# Default: Claude Code + Anthropic
 claudez myapp                     # Shorthand: create + enter (spawn)
 claudez create myapp              # Create only (3GB memory)
 claudez create bigapp --large     # Large (5GB memory)
-claudez spawn myapp               # Create + enter (explicit)
+
+# OpenCode options
+cz myapp --oc                     # OpenCode + OpenRouter (interactive setup)
+cz myapp --oc-anthropic           # OpenCode + Anthropic
+cz myapp --blank                  # Ultra-fast: no Next.js, just agent
+
 # Short alias works too:
 cz myapp
+```
+
+**One-shot prompts (instant answers!):**
+```bash
+# Ultra-fast: reuses persistent 'quickrun-default' zone
+cz run "What is 2+2?"                    # ~40s first time
+cz run "Explain Docker"                  # ~3s every time after!
+cz run "Write a Python script"           # Still ~3s
+
+# Use Claude Code instead of OpenCode
+cz run -a claude "Explain async/await"
+
+# Custom model
+cz run -m "google/gemini-2.5-flash" "Write a haiku"
+
+# Ephemeral (don't reuse zone)
+cz run --isolate "One-off question"
+cz run --cleanup "Create + run + destroy"
+
+# Persist files between runs
+cz run --persist-workspace "Create todo.txt"
+cz run --persist-workspace "Read todo.txt"  # File still there!
+
+# Send prompt to existing zone
+cz prompt myapp "List files in this project"
+cz p myapp "Explain app/page.tsx"  # Short alias
 ```
 
 **Daily workflow:**
@@ -254,8 +329,11 @@ claudez stop myapp                # Stop when idle (on your machine)
 ```
 
 **Available inside zones:**
-- `claude` - Run Claude directly (dies on disconnect)
-- `tclaude` - Run Claude in persistent tmux session (survives disconnects, auto-logs to `/workspace/.claude-logs/`)
+- `claude` - Run Claude Code directly (dies on disconnect)
+- `tclaude` - Run Claude Code in persistent tmux session (survives disconnects, auto-logs to `/workspace/.claude-logs/`)
+- `opencode` - Run OpenCode TUI (for zones created with `--oc`)
+- `claude -p "prompt"` - One-shot Claude Code prompt
+- `opencode run "prompt"` - One-shot OpenCode prompt
 
 **Access your apps:**
 Each zone gets three URLs (use whichever you need):
@@ -271,9 +349,29 @@ Each zone gets three URLs (use whichever you need):
 
 **All `claudez` commands run on your host machine** (outside containers). Commands like `tclaude`, `claude`, and `pm2` run inside zones after you `claudez enter`.
 
+### Quick Actions
+- `claudez run [options] "<prompt>"` — Ultra-fast: create zone, run prompt, optionally cleanup (alias: `r`)
+  - `--isolate` — Create temporary zone instead of reusing `quickrun-default`
+  - `--cleanup` — Delete zone after running (implies --isolate)
+  - `--persist-workspace` — Keep files between runs (default: wipe workspace)
+  - `-z <name>` — Use specific zone name
+  - `-m <model>` — Use specific model (e.g., `google/gemini-2.5-flash`)
+  - `-a <agent>` — Use `claude` or `opencode` (default: opencode)
+- `claudez prompt <zone> "<text>"` — One-shot prompt to existing zone (alias: `p`)
+
+**Performance:** By default, `cz run` reuses a persistent `quickrun-default` zone for maximum speed:
+- First run: ~40s (build container)
+- All subsequent runs: **~3s** (pure API latency!)
+- Workspace is automatically wiped between runs for isolation
+
 ### Management
-- `claudez create <name> [--verify] [--large]` — Build and start a new zone
-- `claudez spawn <name> [--verify] [--large]` — Create and enter in one command
+- `claudez create <name> [options]` — Build and start a new zone
+  - `--oc` — OpenCode with OpenRouter
+  - `--oc-anthropic` — OpenCode with Anthropic
+  - `--blank` — Ultra-fast: no Next.js
+  - `--large` — 5GB memory (default: 3GB)
+  - `--verify` — Verify Traefik routing
+- `claudez spawn <name> [options]` — Create and enter in one command
 - `claudez ls` — List all zones with status
 - `claudez rm <name> [--force]` — Permanently delete a zone
 - `claudez reset <name>` — Remove and recreate from scratch
@@ -291,6 +389,26 @@ Each zone gets three URLs (use whichever you need):
 
 ### Monitoring
 - `claudez status <name>` — Health checks (container + routing)
+
+See detailed docs:
+- `OPENCODE_INTEGRATION.md` — Full OpenCode guide
+- `ONE_SHOT_PROMPTS.md` — One-shot prompt examples
+- `CUSTOMIZING_MODELS.md` — Model configuration
+
+## Permissions & Security
+
+**Quick run mode** (`cz run`, `cz prompt`) grants **full permissions** for rapid execution:
+- **Claude Code:** Uses `--dangerously-skip-permissions` flag (bypasses all permission checks)
+- **OpenCode:** Config set to `"edit": "allow"`, `"bash": "allow"`, `"webfetch": "allow"`
+- Agents can read/write any file, execute any command, fetch any URL without prompts
+
+**Why?** Quick runs are designed for sandboxed containers where speed matters more than permission granularity. For production workflows inside zones, use interactive `tclaude` or `opencode` TUI where you can review each operation.
+
+**Mitigation:** Zones are isolated Docker containers with:
+- Limited CPU/memory (see Resource Limits below)
+- No privileged access
+- Network isolated from host (unless explicitly exposed)
+- Workspace isolation (wiped between `cz run` calls by default)
 
 ## Resource Limits & Security
 
@@ -487,6 +605,15 @@ A: Just run `./setup-traefik.sh` after changing `DOMAIN_BASE`. Everything else a
 
 **Q: Can I run multiple zones at once?**
 A: Yes! Each gets its own subdomain: `app1.localhost:8080`, `app2.localhost:8080`, etc.
+
+**Q: What's the difference between Claude Code and OpenCode?**
+A: Claude Code is Anthropic's official agent (Anthropic API only). OpenCode is open-source and supports 75+ models via OpenRouter (including free options) or any OpenAI-compatible API.
+
+**Q: How do I use free models?**
+A: Create a zone with `cz myapp --oc` and get a free OpenRouter key. Default config includes free Gemini models. Or use `cz run "prompt"` for instant answers.
+
+**Q: Can I switch models mid-session?**
+A: Yes! In OpenCode zones, press `Ctrl+x` then `m` to switch models instantly. Or edit `/workspace/.opencode/opencode.json`.
 
 **Q: What if I want to use Python/Go/Rust instead of Node?**
 A: Edit `templates/Dockerfile.tmpl` to install your runtime. Or fork for multi-runtime support.
