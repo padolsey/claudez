@@ -25,6 +25,8 @@ while [[ $# -gt 0 ]]; do
     --oc-anthropic) AGENT="opencode"; PROVIDER="anthropic"; shift ;;
     --oc-openai) AGENT="opencode"; PROVIDER="openai"; shift ;;
     --oc-custom) AGENT="opencode"; PROVIDER="custom"; shift ;;
+    --gemini) AGENT="gemini"; shift ;;
+    --codex) AGENT="codex"; shift ;;
     --agent) AGENT="$2"; shift 2 ;;
     --provider) PROVIDER="$2"; shift 2 ;;
     --no-interactive) INTERACTIVE=0; shift ;;
@@ -47,7 +49,9 @@ Agent Selection:
   --oc-anthropic        OpenCode with Anthropic
   --oc-openai           OpenCode with OpenAI
   --oc-custom           OpenCode with custom provider (interactive)
-  --agent <name>        Explicit agent: 'claude' or 'opencode'
+  --gemini              Google Gemini CLI (free tier: 1K req/day)
+  --codex               OpenAI Codex CLI (requires ChatGPT Plus+)
+  --agent <name>        Explicit agent: 'claude', 'opencode', 'gemini', 'codex'
   --provider <name>     Provider: 'openrouter', 'anthropic', 'openai', 'custom'
 
 Examples:
@@ -63,14 +67,20 @@ Examples:
   # OpenCode using your OpenAI key
   cz myapp --oc-openai
 
+  # Gemini CLI (free tier!)
+  cz myapp --gemini
+
+  # Codex CLI
+  cz myapp --codex
+
   # Non-interactive (CI/automation)
   export OPENROUTER_API_KEY="sk-or-v1-..."
   cz myapp --oc --no-interactive
 
 API Keys:
   Keys can be set via:
-    • Environment variables: ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY
-    • Config files: ~/.config/claudez/anthropic_key, openrouter_key
+    • Environment variables: ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY
+    • Config files: ~/.config/claudez/anthropic_key, openrouter_key, gemini_key
     • Interactive prompts (default when missing)
 EOF
       exit 0
@@ -295,6 +305,99 @@ Get a valid API key at: https://platform.openai.com/api-keys"
   esac
 fi
 
+# Gemini CLI-specific setup
+if [ "$AGENT" = "gemini" ]; then
+  # Check for Gemini API key
+  if [ -n "${GEMINI_API_KEY:-}" ]; then
+    log "Using GEMINI_API_KEY from environment"
+
+    # Validate key format from env var (Google API keys start with AIza)
+    if [[ ! "$GEMINI_API_KEY" =~ ^AIza ]]; then
+      die "ERROR: Invalid Gemini API key format
+Key must start with 'AIza...' but found: ${GEMINI_API_KEY:0:20}...
+
+Get a valid API key at: https://makersuite.google.com/app/apikey"
+    fi
+  else
+    GEMINI_API_KEY=""
+    GEMINI_KEY_FILE_EXPANDED="${GEMINI_API_KEY_FILE/#\~/$HOME}"
+    if [ -f "$GEMINI_KEY_FILE_EXPANDED" ]; then
+      GEMINI_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$GEMINI_KEY_FILE_EXPANDED")"
+
+      # Validate key format
+      if [ -n "$GEMINI_API_KEY" ] && [[ ! "$GEMINI_API_KEY" =~ ^AIza ]]; then
+        die "ERROR: Invalid Gemini API key format in $GEMINI_KEY_FILE_EXPANDED
+Key must start with 'AIza...' but found: ${GEMINI_API_KEY:0:20}...
+
+Please update your key file with a valid key:
+  echo 'AIza...' > $GEMINI_KEY_FILE_EXPANDED
+
+Get a valid API key at: https://makersuite.google.com/app/apikey"
+      fi
+    fi
+
+    # Interactive prompt if still no key
+    if [ -z "$GEMINI_API_KEY" ] && [ "$INTERACTIVE" -eq 1 ]; then
+      interactive_gemini_setup
+    elif [ -z "$GEMINI_API_KEY" ]; then
+      die "ERROR: No Gemini API key found.
+
+Please set your API key:
+  export GEMINI_API_KEY='AIza...'
+  # OR
+  echo 'AIza...' > ~/.config/claudez/gemini_key
+
+Get your API key at: https://makersuite.google.com/app/apikey"
+    fi
+  fi
+fi
+
+# Codex CLI-specific setup (uses OpenAI API key)
+if [ "$AGENT" = "codex" ]; then
+  # Check for OpenAI API key (Codex uses standard OpenAI keys)
+  if [ -n "${OPENAI_API_KEY:-}" ]; then
+    log "Using OPENAI_API_KEY from environment for Codex"
+
+    # Validate key format from env var
+    if [[ ! "$OPENAI_API_KEY" =~ ^sk- ]]; then
+      die "ERROR: Invalid OpenAI API key format
+Key must start with 'sk-' but found: ${OPENAI_API_KEY:0:20}...
+
+Get a valid API key at: https://platform.openai.com/api-keys"
+    fi
+  else
+    OPENAI_API_KEY=""
+    OPENAI_KEY_FILE_EXPANDED="${OPENAI_API_KEY_FILE/#\~/$HOME}"
+    if [ -f "$OPENAI_KEY_FILE_EXPANDED" ]; then
+      OPENAI_API_KEY="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$OPENAI_KEY_FILE_EXPANDED")"
+
+      # Validate key format
+      if [ -n "$OPENAI_API_KEY" ] && [[ ! "$OPENAI_API_KEY" =~ ^sk- ]]; then
+        die "ERROR: Invalid OpenAI API key format in $OPENAI_KEY_FILE_EXPANDED
+Key must start with 'sk-' but found: ${OPENAI_API_KEY:0:20}...
+
+Please update your key file with a valid key:
+  echo 'sk-proj-...' > $OPENAI_KEY_FILE_EXPANDED
+
+Get a valid API key at: https://platform.openai.com/api-keys"
+      fi
+    fi
+
+    # No key found
+    if [ -z "$OPENAI_API_KEY" ]; then
+      die "ERROR: No OpenAI API key found for Codex.
+
+Please set your API key:
+  export OPENAI_API_KEY='sk-proj-...'
+  # OR
+  echo 'sk-proj-...' > ~/.config/claudez/openai_key
+
+Get your API key at: https://platform.openai.com/api-keys
+Note: Codex requires a ChatGPT Plus/Pro/Enterprise subscription"
+    fi
+  fi
+fi
+
 # .env inside app dir (container env)
 cat > "${APP_DIR}/.env" <<EOF
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -322,6 +425,16 @@ if [ "$AGENT" = "opencode" ]; then
       echo "CUSTOM_PROVIDER_NAME=${CUSTOM_PROVIDER_NAME}" >> "${APP_DIR}/.env"
       ;;
   esac
+fi
+
+# Add Gemini CLI environment variables
+if [ "$AGENT" = "gemini" ]; then
+  echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> "${APP_DIR}/.env"
+fi
+
+# Add Codex CLI environment variables (uses OPENAI_API_KEY)
+if [ "$AGENT" = "codex" ]; then
+  echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> "${APP_DIR}/.env"
 fi
 
 chmod 600 "${APP_DIR}/.env"
@@ -507,14 +620,22 @@ if [ "$AGENT" = "opencode" ]; then
   if [ "$PROVIDER" = "openrouter" ]; then
     MODELS="gemini-flash-free claude-sonnet gpt4-turbo deepseek-chat"
   fi
+elif [ "$AGENT" = "gemini" ]; then
+  AGENT_DISPLAY="Gemini CLI"
+  AGENT_CMD="gemini"
+  MODELS=""
+elif [ "$AGENT" = "codex" ]; then
+  AGENT_DISPLAY="Codex CLI"
+  AGENT_CMD="codex"
+  MODELS=""
 else
   AGENT_DISPLAY="Claude Code"
   AGENT_CMD="tclaude"
   MODELS=""
 fi
 
-# Use fancy box if OpenCode
-if [ "$AGENT" = "opencode" ]; then
+# Use fancy box if OpenCode, Gemini, or Codex
+if [ "$AGENT" = "opencode" ] || [ "$AGENT" = "gemini" ] || [ "$AGENT" = "codex" ]; then
   show_success_box "$NAME" "$AGENT_DISPLAY" "$PROTOCOL" "$DOMAIN_BASE" "$MODELS"
 else
   cat <<EOF

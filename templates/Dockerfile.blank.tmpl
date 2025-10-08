@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       tini git vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Install both agents (super fast - no other deps)
-RUN npm install -g @anthropic-ai/claude-code opencode-ai
+# Install all agents (super fast - no other deps)
+RUN npm install -g @anthropic-ai/claude-code opencode-ai @google/gemini-cli @openai/codex
 
 # Startup script (minimal - no pm2, no http-server, no Next.js init)
 RUN cat >/usr/local/bin/startup.sh <<'EOS'
@@ -40,6 +40,33 @@ JSON
   echo "$ANTHROPIC_API_KEY" > /home/appuser/.config/anthropic_key
   chown appuser:appuser /home/appuser/.config/anthropic_key
   chmod 600 /home/appuser/.config/anthropic_key
+fi
+
+# Pre-configure Gemini CLI
+if [ -n "${GEMINI_API_KEY:-}" ]; then
+  mkdir -p /home/appuser/.gemini
+  cat > /home/appuser/.gemini/settings.json <<JSON
+{
+  "auth": {
+    "type": "api-key"
+  }
+}
+JSON
+  chown -R appuser:appuser /home/appuser/.gemini
+  chmod 600 /home/appuser/.gemini/settings.json
+fi
+
+# Pre-configure Codex CLI
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  mkdir -p /home/appuser/.codex
+  cat > /home/appuser/.codex/config.toml <<TOML
+[approvals]
+file_read = "auto"
+file_write = "auto"
+bash = "auto"
+TOML
+  chown -R appuser:appuser /home/appuser/.codex
+  chmod 600 /home/appuser/.codex/config.toml
 fi
 
 # Fix workspace ownership

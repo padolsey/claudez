@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       procps build-essential python3 vim \
     && rm -rf /var/lib/apt/lists/*
 
-# global tools (including both Claude Code and OpenCode)
-RUN npm install -g @anthropic-ai/claude-code opencode-ai pm2 http-server pnpm && \
+# global tools (including Claude Code, OpenCode, Gemini CLI, and Codex CLI)
+RUN npm install -g @anthropic-ai/claude-code opencode-ai @google/gemini-cli @openai/codex pm2 http-server pnpm && \
     pm2 install pm2-logrotate && \
     pm2 set pm2-logrotate:max_size 10M && \
     pm2 set pm2-logrotate:retain 5 && \
@@ -59,6 +59,36 @@ JSON
   echo "$ANTHROPIC_API_KEY" > /home/appuser/.config/anthropic_key
   chown appuser:appuser /home/appuser/.config/anthropic_key
   chmod 600 /home/appuser/.config/anthropic_key
+fi
+
+# Pre-configure Gemini CLI to use API key (skip OAuth)
+if [ -n "${GEMINI_API_KEY:-}" ]; then
+  mkdir -p /home/appuser/.gemini
+  cat > /home/appuser/.gemini/settings.json <<JSON
+{
+  "auth": {
+    "type": "api-key"
+  }
+}
+JSON
+  chown -R appuser:appuser /home/appuser/.gemini
+  chmod 600 /home/appuser/.gemini/settings.json
+
+  # Write API key to environment file for Gemini
+  echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> /home/appuser/.profile
+fi
+
+# Pre-configure Codex CLI with API key
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  mkdir -p /home/appuser/.codex
+  cat > /home/appuser/.codex/config.toml <<TOML
+[approvals]
+file_read = "auto"
+file_write = "auto"
+bash = "auto"
+TOML
+  chown -R appuser:appuser /home/appuser/.codex
+  chmod 600 /home/appuser/.codex/config.toml
 fi
 
 # Fix workspace ownership for inner Claude (after creating .claude dir)

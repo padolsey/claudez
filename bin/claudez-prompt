@@ -34,10 +34,12 @@ Examples:
   cz p myapp "List all TODO comments"
 
 Notes:
-  - Zone must exist (works with both Claude Code and OpenCode zones)
+  - Zone must exist (works with Claude Code, OpenCode, Gemini CLI, and Codex CLI zones)
   - Detects which agent is available and uses it automatically
   - For OpenCode: uses default model from /workspace/.opencode/opencode.json
   - For Claude Code: uses configured Anthropic API key
+  - For Gemini CLI: uses configured Gemini API key
+  - For Codex CLI: uses configured OpenAI API key
   - Output shows tool calls and final AI response
 
 Changing Models (OpenCode zones):
@@ -84,6 +86,8 @@ fi
 # Detect which agent is available
 HAS_OPENCODE=0
 HAS_CLAUDE=0
+HAS_GEMINI=0
+HAS_CODEX=0
 
 if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v opencode' >/dev/null 2>&1; then
   HAS_OPENCODE=1
@@ -93,15 +97,31 @@ if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v claude' >/dev/nu
   HAS_CLAUDE=1
 fi
 
-if [ $HAS_OPENCODE -eq 0 ] && [ $HAS_CLAUDE -eq 0 ]; then
-  die "Zone '${ZONE_NAME}' has neither Claude Code nor OpenCode installed."
+if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v gemini' >/dev/null 2>&1; then
+  HAS_GEMINI=1
 fi
 
-# Prefer OpenCode if both available, otherwise use what's there
+if docker exec -u appuser "$CONTAINER_NAME" bash -c 'command -v codex' >/dev/null 2>&1; then
+  HAS_CODEX=1
+fi
+
+if [ $HAS_OPENCODE -eq 0 ] && [ $HAS_CLAUDE -eq 0 ] && [ $HAS_GEMINI -eq 0 ] && [ $HAS_CODEX -eq 0 ]; then
+  die "Zone '${ZONE_NAME}' has no AI agent installed."
+fi
+
+# Prefer in order: OpenCode > Gemini > Codex > Claude
 if [ $HAS_OPENCODE -eq 1 ]; then
   AGENT="opencode"
   CMD="cd /workspace && opencode run \"${PROMPT}\""
   log "Running prompt with OpenCode in zone '${ZONE_NAME}'..."
+elif [ $HAS_GEMINI -eq 1 ]; then
+  AGENT="gemini"
+  CMD="cd /workspace && gemini -p \"${PROMPT}\""
+  log "Running prompt with Gemini CLI in zone '${ZONE_NAME}'..."
+elif [ $HAS_CODEX -eq 1 ]; then
+  AGENT="codex"
+  CMD="cd /workspace && codex exec \"${PROMPT}\""
+  log "Running prompt with Codex CLI in zone '${ZONE_NAME}'..."
 else
   AGENT="claude"
   CMD="cd /workspace && claude -p \"${PROMPT}\" --dangerously-skip-permissions"

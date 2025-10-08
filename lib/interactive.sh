@@ -44,7 +44,7 @@ show_success_box() {
   echo "│  Quick Start:                                          │"
   printf "│    %-50s │\n" "claudez enter $zone_name"
 
-  if [ "$agent" = "OpenCode" ]; then
+  if [[ "$agent" == "OpenCode"* ]]; then
     printf "│    %-50s │\n" "opencode"
     if [ -n "$models" ]; then
       echo "│                                                        │"
@@ -53,6 +53,10 @@ show_success_box() {
         printf "│    • %-48s │\n" "$model"
       done
     fi
+  elif [ "$agent" = "Gemini CLI" ]; then
+    printf "│    %-50s │\n" "gemini"
+  elif [ "$agent" = "Codex CLI" ]; then
+    printf "│    %-50s │\n" "codex"
   else
     printf "│    %-50s │\n" "tclaude"
   fi
@@ -128,4 +132,58 @@ interactive_custom_provider_setup() {
   export CUSTOM_API_KEY
 
   log "✓ Custom provider configured: $CUSTOM_PROVIDER_NAME"
+}
+
+interactive_gemini_setup() {
+  log_section "Google Gemini API Key Required"
+
+  echo "Gemini CLI gives you access to Google's latest AI models with a generous free tier:"
+  echo "  • 60 requests per minute"
+  echo "  • 1,000 requests per day"
+  echo "  • 1 million token context window"
+  echo ""
+  echo "Get your free API key at: https://makersuite.google.com/app/apikey"
+  echo ""
+
+  # Optionally open browser
+  if command -v xdg-open >/dev/null 2>&1 || command -v open >/dev/null 2>&1; then
+    read -p "Open in browser? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+      (command -v xdg-open >/dev/null 2>&1 && xdg-open "https://makersuite.google.com/app/apikey" 2>/dev/null) || \
+      (command -v open >/dev/null 2>&1 && open "https://makersuite.google.com/app/apikey" 2>/dev/null) || true
+      sleep 2
+    fi
+  fi
+
+  echo ""
+  read -p "Paste your Gemini API key: " -s GEMINI_API_KEY
+  echo ""
+
+  if [ -z "$GEMINI_API_KEY" ]; then
+    die "No API key provided. Cancelled."
+  fi
+
+  # Validate format
+  if [[ ! "$GEMINI_API_KEY" =~ ^AIza ]]; then
+    log "⚠  Warning: Key doesn't match expected format (AIza...)"
+    read -p "Continue anyway? [y/N] " -n 1 -r
+    echo
+    [[ ! $REPLY =~ ^[Yy]$ ]] && die "Cancelled."
+  fi
+
+  log "✓ API key received (${GEMINI_API_KEY:0:15}...)"
+
+  # Offer to save
+  echo ""
+  read -p "Save this key for future zones? [Y/n] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+    mkdir -p "$(dirname "${GEMINI_API_KEY_FILE/#\~/$HOME}")"
+    echo "$GEMINI_API_KEY" > "${GEMINI_API_KEY_FILE/#\~/$HOME}"
+    chmod 600 "${GEMINI_API_KEY_FILE/#\~/$HOME}"
+    log "✓ Saved to ${GEMINI_API_KEY_FILE}"
+  fi
+
+  export GEMINI_API_KEY
 }

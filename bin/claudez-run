@@ -25,7 +25,7 @@ Perfect for quick AI queries without manual zone management.
 Options:
   -z, --zone <name>      Zone name (default: 'quickrun-default')
   -m, --model <id>       Model to use (e.g., "google/gemini-2.5-flash")
-  -a, --agent <name>     Agent: 'claude' or 'opencode' (default: opencode)
+  -a, --agent <name>     Agent: 'claude', 'opencode', 'gemini', 'codex' (default: opencode)
   -p, --provider <name>  Provider: openrouter, anthropic, openai, custom (default: openrouter)
   --isolate              Create temporary zone (like old behavior)
   --cleanup              Delete zone after running (implies --isolate)
@@ -40,6 +40,12 @@ Examples:
 
   # Use Claude Code instead
   cz run -a claude "Explain async/await"
+
+  # Use Gemini CLI (free tier!)
+  cz run -a gemini "What is Docker?"
+
+  # Use Codex CLI
+  cz run -a codex "Fix this bug"
 
   # Custom model with OpenCode
   cz run -m "google/gemini-2.5-flash" "Explain Docker"
@@ -65,7 +71,8 @@ Examples:
 Environment:
   OPENROUTER_API_KEY    Required for OpenRouter
   ANTHROPIC_API_KEY     Required for Anthropic
-  OPENAI_API_KEY        Required for OpenAI
+  OPENAI_API_KEY        Required for OpenAI and Codex
+  GEMINI_API_KEY        Required for Gemini CLI
 
 Performance:
   By default, reuses a persistent 'quickrun-default' zone:
@@ -151,6 +158,10 @@ else
       openai) CREATE_FLAGS="$CREATE_FLAGS --oc-openai" ;;
       custom) CREATE_FLAGS="$CREATE_FLAGS --oc-custom" ;;
     esac
+  elif [ "$AGENT" = "gemini" ]; then
+    CREATE_FLAGS="$CREATE_FLAGS --gemini"
+  elif [ "$AGENT" = "codex" ]; then
+    CREATE_FLAGS="$CREATE_FLAGS --codex"
   fi
   # Claude Code doesn't need special flags (it's the default)
 
@@ -226,6 +237,20 @@ echo ""
 if [ "$AGENT" = "opencode" ]; then
   # OpenCode run (permissions controlled via config file - already set to "allow" in templates)
   docker exec -u appuser "$CONTAINER_NAME" bash -c "cd /workspace && opencode run \"${PROMPT}\"" || {
+    EXIT_CODE=$?
+    [ "$CLEANUP" -eq 1 ] && "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
+    exit $EXIT_CODE
+  }
+elif [ "$AGENT" = "gemini" ]; then
+  # Gemini CLI run with prompt flag
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "cd /workspace && gemini -p \"${PROMPT}\"" || {
+    EXIT_CODE=$?
+    [ "$CLEANUP" -eq 1 ] && "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
+    exit $EXIT_CODE
+  }
+elif [ "$AGENT" = "codex" ]; then
+  # Codex CLI run with exec mode (non-interactive)
+  docker exec -u appuser "$CONTAINER_NAME" bash -c "cd /workspace && codex exec \"${PROMPT}\"" || {
     EXIT_CODE=$?
     [ "$CLEANUP" -eq 1 ] && "$SELF_DIR/claudez-rm" "$ZONE_NAME" --force >/dev/null 2>&1
     exit $EXIT_CODE
